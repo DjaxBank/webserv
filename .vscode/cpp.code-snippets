@@ -1,0 +1,74 @@
+{
+    "C++ Class": {
+        "scope": "cpp",
+        "prefix": ["class", "class1"],
+        "body": [
+            "#ifndef ${TM_FILENAME_BASE/(.*)/${1:/upcase}/}_HPP",
+            "#define ${TM_FILENAME_BASE/(.*)/${1:/upcase}/}_HPP",
+            "",
+            "class ${1:${TM_FILENAME_BASE/(^|_)(\\w)/${2:/upcase}/g}}",
+            "{",
+            "    private:",
+            "",
+            "    public:",
+            "        ${1:${TM_FILENAME_BASE/(^|_)(\\w)/${2:/upcase}/g}}();",
+            "        ~$1();",
+            "",
+            "};",
+            "",
+            "#endif // ${TM_FILENAME_BASE/(.*)/${1:/upcase}/}_HPP"
+        ],
+        "description": "C++ class template with PascalCase class name and UPPERCASE include guard"
+    },
+    
+    "C++ Class (Rule of three)": {
+        "prefix": ["class", "class3"],
+        "body": [
+            "#ifndef ${TM_FILENAME_BASE/(.*)/${1:/upcase}/}_HPP",
+            "#define ${TM_FILENAME_BASE/(.*)/${1:/upcase}/}_HPP",
+            "",
+            "class ${1:${TM_FILENAME_BASE/(^|_)(\\w)/${2:/upcase}/g}}",
+            "{",
+            "    private:",
+            "",
+            "    public:",
+            "        ${1:${TM_FILENAME_BASE/(^|_)(\\w)/${2:/upcase}/g}}();",
+            "        ${1:${TM_FILENAME_BASE/(^|_)(\\w)/${2:/upcase}/g}}(const ${1:${TM_FILENAME_BASE/(^|_)(\\w)/${2:/upcase}/g}}& other);",
+            "        ${1:${TM_FILENAME_BASE/(^|_)(\\w)/${2:/upcase}/g}}& operator=(const ${1:${TM_FILENAME_BASE/(^|_)(\\w)/${2:/upcase}/g}}& other);",
+            "        ~$1();",
+            "",
+            "};",
+            "",
+            "#endif // ${TM_FILENAME_BASE/(.*)/${1:/upcase}/}_HPP"
+        ],
+        "description": "C++ class template with PascalCase class name, UPPERCASE include guard, and Rule-of-Three methods"
+    },
+    "C++ Member Definitions": {
+        "prefix": ["def","member","orthodox"],
+        "body": [
+            "#include \"${1:${TM_FILENAME_BASE/(^|_)(\\w)/${2:/upcase}/}}.hpp\"",
+            "",
+            "${1:${TM_FILENAME_BASE/(^|_)(\\w)/${2:/upcase}/g}}::${1:${TM_FILENAME_BASE/(^|_)(\\w)/${2:/upcase}/g}}()",
+            "{",
+            "",
+            "}",
+            "",
+            "${1:${TM_FILENAME_BASE/(^|_)(\\w)/${2:/upcase}/g}}::~${1:${TM_FILENAME_BASE/(^|_)(\\w)/${2:/upcase}/g}}()",
+            "{",
+            "",
+            "}",
+            "",
+            "${1:${TM_FILENAME_BASE/(^|_)(\\w)/${2:/upcase}/g}}::${1:${TM_FILENAME_BASE/(^|_)(\\w)/${2:/upcase}/g}}(const ${1:${TM_FILENAME_BASE/(^|_)(\\w)/${2:/upcase}/g}}& other)",
+            "{",
+            "",
+            "}",
+            "",
+            "${1:${TM_FILENAME_BASE/(^|_)(\\w)/${2:/upcase}/g}}& ${1:${TM_FILENAME_BASE/(^|_)(\\w)/${2:/upcase}/g}}::operator=(const ${1:${TM_FILENAME_BASE/(^|_)(\\w)/${2:/upcase}/g}}& other)",
+            "{",
+            "",
+            "}",
+            ""
+        ],
+        "description": "C++ member definitions for constructor, destructor, copy constructor, and copy assignment operator"
+    }
+}
