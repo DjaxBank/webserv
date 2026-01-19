@@ -1,6 +1,6 @@
 #include <sys/socket.h>
 #include "Socket.hpp"
-
+#include <unistd.h>
 
 Socket::Socket(unsigned int port)
 {
@@ -13,5 +13,5 @@ Socket::Socket(unsigned int port)
 
 Socket::~Socket()
 {
-
+	close(socket_fd);
 }
