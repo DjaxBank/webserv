@@ -1,6 +1,6 @@
 #include <iostream>
 #include "config.hpp"
-
+#include "Socket.hpp"
 int main(int argc, char **argv)
 {
 	if (argc != 2)
@@ -10,8 +10,8 @@ int main(int argc, char **argv)
 	}
 	bool server_running = true;
 	Config Config(argv[1]);
-	while (server_running)
-	{
-		
-	}
+	// while (server_running)
+	// {
+		Socket sock(8080);
+	// }
 }

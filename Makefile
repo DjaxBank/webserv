@@ -2,7 +2,7 @@ NAME = webserv
 SRC = src/main.cpp src/Config.cpp src/Socket.cpp
 OBJS = $(SRC:.cpp=.o)
 CC = c++
-FLAGS = -Wall -Wextra -I inc/ -g -fsanitize=address,undefined
+FLAGS = -Wall -Wextra -I inc/ -g
 
 all: $(NAME)
 
