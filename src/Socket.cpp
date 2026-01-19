@@ -9,9 +9,12 @@ Socket::Socket(unsigned int port)
 	addr.sin_family = AF_INET;
 	addr.sin_addr.s_addr = INADDR_ANY;
 	bind(socket_fd, (struct sockaddr*)&addr, sizeof(addr));
+	listen(socket_fd, 10);
 }
 
 Socket::~Socket()
 {
 	close(socket_fd);
 }
+
+int Socket::get_socket_fd() { return socket_fd; };

@@ -8,10 +8,10 @@ int main(int argc, char **argv)
 		std::cerr << "./webserv [configuration file]\n";
 		return EXIT_FAILURE;
 	}
-	bool server_running = true;
 	Config Config(argv[1]);
 	// while (server_running)
 	// {
 		Socket sock(8080);
+		// accept(sock.get_socket_fd());
 	// }
 }
