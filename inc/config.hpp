@@ -8,10 +8,11 @@ class Config
 	private:
 		Config();
 		void ImportIntPortPairs(std::ifstream fstream, size_t linecount);
-		std::string				Forbidden;
-		std::string				NotFound;
-		std::string				MaxRequestBodySize;
-		std::vector<UrlRule>	Url_rules;
+		std::vector<std::string[2]> socket_pairs;
+		std::string					Forbidden;
+		std::string					NotFound;
+		std::string					MaxRequestBodySize;
+		std::vector<UrlRule>		Url_rules;
 
 	public:	
 		Config(const char *ConfigFile);

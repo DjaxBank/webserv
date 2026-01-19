@@ -13,4 +13,5 @@ class Socket
 		Socket(const Socket &other);
 		Socket &operator=(const Socket &other);
 		~Socket();
+		int get_socket_fd();
 };
