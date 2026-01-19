@@ -1,4 +1,4 @@
-#include <../inc/Request.hpp>
+#include "../inc/Request.hpp"
 
 Request::Request() : m_method(), m_path(), m_version(), m_headers(), m_body()
 {
