@@ -15,6 +15,15 @@ enum class HttpMethod
 	NONE,
 };
 
+enum class ParserState
+{
+	REQUEST_LINE,
+	HEADERS,
+	BODY,
+	COMPLETE,
+	ERROR,
+};
+
 std::string method_tostring(HttpMethod method);
 HttpMethod string_tomethod(const std::string& str);
 
@@ -25,17 +34,24 @@ void handle_method(HttpMethod method);
 class RequestParser
 {
 	private:
-		// std::string m_line;
 		std::string m_buffer;
+		ParserState m_state;
+		Request m_request;
 	public:
 		RequestParser();
 		RequestParser(const RequestParser& other);
 		RequestParser& operator=(const RequestParser& other);
 		~RequestParser();
 		HttpMethod getMethod(const std::string &str) const;
-		bool parseLine(Request& request_data, const std::string& line);
-
-
+		ParserState getState() const;
+		bool fetch_data(const std::string& data);
+		void debugState(const char* label = "DEBUG") const;
+	private:
+		void parseRequestLine();
+		void parseHeaders();
+		void parseBody();
+		void setErrorAndReturn(const char* reason = "", const std::string& line = "");
+		bool validateHTTPVersion(const std::string& version);
 
 };
 
