@@ -168,14 +168,85 @@ void RequestParser::parseRequestLine()
     m_state = ParserState::HEADERS;
 }
 
-/* needs implementing */
-void RequestParser::parseHeaders()
+/* Extracts header key. Errors return empty string*/
+std::string RequestParser::extractKey(const std::string& header_token)
 {
-    std::cout << "IN HEADERS: " << m_buffer << std::endl;
-    return;
+    size_t pos = header_token.find(':');
+    if (pos == std::string::npos)
+        return "";
+    
+    std::string key = header_token.substr(0, pos);
+    if (key.find(' ') != std::string::npos || key.find('\t') != std::string::npos)
+        return "";
+    return key;
 }
 
-/* Parses HTTP body (stub implementation) */
+/* Extracts header value for key pair. Values allowed to be empty*/
+std::string RequestParser::extractValue(const std::string& header_token)
+{
+    size_t pos = header_token.find(':');
+    if (pos == std::string::npos)
+        return "";
+   std::string value = header_token.substr(pos + 1);
+    return trimValue(value);
+}
+/* Trims header values of leading/trailing whitespace */
+std::string RequestParser::trimValue(const std::string& value)
+{
+    std::string result = value;
+    
+    size_t start = result.find_first_not_of(" \t");
+    if (start != std::string::npos)
+        result = result.substr(start);
+    else
+        return "";
+    
+    size_t end = result.find_last_not_of(" \t");
+    if (end != std::string::npos)
+        result = result.substr(0, end + 1);
+    
+    return result;
+}
+
+
+/* Parses header of HTTP request and adds them to a request's key:value map */
+void RequestParser::parseHeaders()
+{
+    const size_t MAX_HEADER_SIZE = 32768;
+    // Expected headers are like "Host: localhost:8080\r\n"
+    while (true)
+    {
+        size_t pos = m_buffer.find("\r\n");
+        if (pos == std::string::npos)
+            return;
+        if (pos > MAX_HEADER_SIZE)
+            return setErrorAndReturn("header line too long", "");
+        std::string header_token = m_buffer.substr(0, pos);
+        m_buffer.erase(0, pos + 2);
+        if (header_token.empty()) {
+            HttpMethod method = string_tomethod(m_request.getMethod());
+            if (method == HttpMethod::GET || method == HttpMethod::HEAD || method == HttpMethod::DELETE)
+                m_state = ParserState::COMPLETE;
+            else
+                m_state = ParserState::BODY;
+            return;
+        }
+        
+        std::string key = extractKey(header_token);
+        if (key.empty())
+            return setErrorAndReturn("invalid header key", header_token);
+
+        std::string value = extractValue(header_token);
+
+        m_request.addHeader(key, value);
+    }
+    // to do
+    // validate required headers if HTTP version == 1.1
+    // check based on method if I expect a body or not and change state based on that
+    // also based on method I may need content length and transfer encoding i think
+}
+
+/* Needs implementing */
 void RequestParser::parseBody()
 {
     //implement
@@ -193,9 +264,7 @@ void RequestParser::parseBody()
  */
 bool RequestParser::fetch_data(const std::string& data)
 {
-    // m_buffer += data;
-    // TEMP hack solution for testing to add \n because getline strips it.
-    m_buffer += data + '\n';
+    m_buffer += data;
     switch (m_state)
     {
         case ParserState::REQUEST_LINE:
@@ -232,40 +301,99 @@ void RequestParser::debugState(const char* label) const
             << " \nmethod=\"" << m_request.getMethod() << "\""
             << " \ntarget=\"" << m_request.getTarget() << "\""
             << " \nversion=\"" << m_request.getVersion() << "\""
-            << " \nheaders=" << m_request.getHeaders().size()
-            << " \nbody_bytes=" << m_request.getBody().size()
+            << " \nheaders=" << m_request.getHeaders().size() << "\n";
+            
+    const std::map<std::string, std::string>& headers = m_request.getHeaders();
+    for (const auto& pair : headers)
+    {
+        std::cerr << "  [" << pair.first << "]: " << pair.second << "\n";
+    }
+    
+    std::cerr << " \nbody_bytes=" << m_request.getBody().size()
             << " \nbuffer_prefix=\"" << m_buffer.substr(0, 80) << "\""
             << "\n------------------------------------\n";
 }
 
+
+/* Searchers for key in headers and returns value as a string
+    @param key for the value you are trying to find
+    e.g. "Host"
+*/
+std::string RequestParser::getHeader(const std::string& key) const
+{
+    const auto& headers = m_request.getHeaders();
+    auto iterator = headers.find(key);
+    if (iterator != headers.end())
+    {
+        return iterator->second;
+    }
+    else
+        return "";
+    
+}
+
 int main() {
-    // construct a request object to populate with data
-    Request request_data;
     RequestParser parser;
 
-    // example HTTP request as a str
     std::string mock_request = "GET /index.html HTTP/1.1\r\n"
-                                "Host: example.com\r\n"
-                                "Connection: close\r\n"
+                                "Host: localhost:8080\r\n"
+                                "User-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36\r\n"
+                                "Accept:: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8\r\n"
+                                "Accept-Language: en-US,en;q=0.9\r\n"
+                                "Accept-Encoding: gzip, deflate\r\n"
+                                "Connection: keep-alive\r\n"
+                                "Upgrade-Insecure-Requests: 1\r\n"
                                 "\r\n";
     
-    // Wrap it in a stream
-    std::istringstream input(mock_request);
+    // AI generated test case to simulate socket feeding data.
+    // just wanted a quick check to make sure what I'm doing is portable
+
+    // Simulate socket recv() by feeding data in chunks
+    // Real socket: recv(socket_fd, buffer, 1024, 0)
     
-    std::string line;
+    size_t chunk_size = 50;  // Simulate small socket recv chunks
+    size_t offset = 0;
     
-    // Read lines until empty (replace with socket later)
-    while (std::getline(input, line)) {
-        if (line.empty()) {
-            std::cout << "Empty line (end of headers)\n";
+    while (offset < mock_request.size())
+    {
+        // Simulate recv() call - get chunk of data
+        size_t bytes_to_read = std::min(chunk_size, mock_request.size() - offset);
+        std::string chunk = mock_request.substr(offset, bytes_to_read);
+        offset += bytes_to_read;
+        
+        std::cout << ">> Recv chunk [" << bytes_to_read << " bytes]: " 
+                  << chunk.substr(0, 30) << (chunk.size() > 30 ? "..." : "") << "\n";
+        
+        // Feed chunk to parser
+        if (!parser.fetch_data(chunk))
+        {
+            std::cerr << "Parse failed\n";
+            return 1;
+        }
+        
+        // Check if parsing is complete
+        if (parser.getState() == ParserState::COMPLETE)
+        {
+            std::cout << "Parsing complete!\n";
             break;
         }
-        if (!parser.fetch_data(line))
+        else if (parser.getState() == ParserState::ERROR)
         {
-            return(1);
+            std::cerr << "Parse error\n";
+            return 1;
         }
     }
-	std::cout << "Parsed successfully\n";
-    parser.debugState();
+    
+    if (parser.getState() == ParserState::COMPLETE)
+    {
+        std::cout << "Parsed successfully\n";
+        parser.debugState();
+    }
+    else
+    {
+        std::cerr << "Parsing incomplete\n";
+        return 1;
+    }
+    
     return 0;
 }

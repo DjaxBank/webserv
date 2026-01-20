@@ -70,3 +70,8 @@ void Request::setBody(const std::string& body)
 {
     m_body = body;
 }
+
+void Request::addHeader(const std::string& key, const std::string& value)
+{
+	m_headers[key] = value;
+}

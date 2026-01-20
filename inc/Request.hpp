@@ -29,6 +29,8 @@ class Request
 		void setVersion(const std::string& version);
 		void setHeaders(const std::map<std::string, std::string>& headers);
 		void setBody(const std::string& body);
+
+		void addHeader(const std::string& key, const std::string& value);
 };
 
 #endif
