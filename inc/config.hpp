@@ -14,6 +14,8 @@ class Config
 {
 	private:
 		Config();
+		Config(const Config &other);
+		Config &operator=(const Config &other);
 		void						ImportIntPortPairs(std::string value);
 		void	CheckAllFull();
 		std::vector<socket_pair>	socket_pairs;
@@ -24,8 +26,6 @@ class Config
 
 	public:	
 		Config(const char *ConfigFile);
-		Config(const Config &other);
-		Config &operator=(const Config &other);
 		~Config();
 		class UnknownOptionException : public std::exception
 		{
