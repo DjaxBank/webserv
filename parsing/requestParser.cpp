@@ -135,7 +135,7 @@ void RequestParser::parseRequestLine()
     std::string request_line = m_buffer.substr(0, pos);
     m_buffer.erase(0, pos + 2);
 
-    // method
+    // extract method
     pos = request_line.find(' ');
     if (pos == std::string::npos)
         return setErrorAndReturn("no space after method", request_line);
@@ -146,24 +146,25 @@ void RequestParser::parseRequestLine()
     m_request.setMethod(method_tostring(method));
     request_line = request_line.substr(pos + 1);
 
-    // target
+    // extract target
     pos = request_line.find(' ');
     if (pos == std::string::npos)
         return setErrorAndReturn("no space after target", request_line);
-    std::string target = request_line.substr(0, pos);
-    if (target.empty())
+    std::string target_token = request_line.substr(0, pos);
+    if (target_token.empty())
         return setErrorAndReturn("empty target", request_line);
-    m_request.setTarget(target);
+    m_request.setTarget(target_token);
     request_line = request_line.substr(pos + 1);
 
-    // version
-    if (request_line.empty() || request_line.find(' ') != std::string::npos)
-        return setErrorAndReturn("version missing or has spaces", request_line);
-    if (!validateHTTPVersion(request_line))
-        return setErrorAndReturn("invalid HTTP version", request_line);
-    m_request.setVersion(request_line);
+    // extract version
+	std::string version_token = request_line;
+    if (version_token.empty() || version_token.find(' ') != std::string::npos)
+        return setErrorAndReturn("version missing or has spaces", version_token);
+    if (!validateHTTPVersion(version_token))
+        return setErrorAndReturn("invalid HTTP version", version_token);
+    m_request.setVersion(version_token);
 
-	// ready for next state of parsing
+	// no errors. ready for next state of parsing
     m_state = ParserState::HEADERS;
 }
 
