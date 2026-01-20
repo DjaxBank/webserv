@@ -17,14 +17,13 @@ class Config
 		Config(const Config &other);
 		Config &operator=(const Config &other);
 		void						ImportIntPortPairs(std::string value);
-		void	CheckAllFull();
+		void	CheckAllFull();		
+	public:	
 		std::vector<socket_pair>	socket_pairs;
 		std::string					Forbidden;
 		std::string					NotFound;
 		std::string					MaxRequestBodySize;
 		std::vector<UrlRule>		Url_rules;
-
-	public:	
 		Config(const char *ConfigFile);
 		~Config();
 		class UnknownOptionException : public std::exception

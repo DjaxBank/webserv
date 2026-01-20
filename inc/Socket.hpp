@@ -5,13 +5,13 @@ class Socket
 {
 	private:
 		Socket();
+		Socket &operator=(const Socket &other);
 		int					socket_fd;
 		struct sockaddr_in	addr;
 	
 	public:
 		Socket(unsigned int port);
 		Socket(const Socket &other);
-		Socket &operator=(const Socket &other);
 		~Socket();
 		int get_socket_fd();
 };
