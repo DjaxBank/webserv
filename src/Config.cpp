@@ -103,16 +103,6 @@ Config::Config(const char *ConfigFile)
 	CheckAllFull();
 }
 
-Config::Config(const Config &other)
-{
-
-}
-
-Config &Config::operator=(const Config &other)
-{
-
-}
-
 Config::~Config()
 {
 
