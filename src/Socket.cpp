@@ -12,6 +12,8 @@ Socket::Socket(unsigned int port)
 	listen(socket_fd, 10);
 }
 
+Socket::Socket(const Socket &other) : socket_fd(other.socket_fd), addr(other.addr){}
+
 Socket::~Socket()
 {
 	close(socket_fd);

@@ -12,14 +12,14 @@ void Config::CheckAllFull()
 	if (socket_pairs.empty())
 	{
 		has_missing = true;
-		missing_str.push_back(" - listen =");
+		missing_str.emplace_back(" - listen =");
 	}
 	for (size_t i = 0; i < 3; i++)
 	{
 		if (str_options[i]->empty())
 		{
 			has_missing = true;
-			missing_str.push_back(str_messages[i]);
+			missing_str.emplace_back(str_messages[i]);
 		}
 	}
 	if (has_missing == true)
