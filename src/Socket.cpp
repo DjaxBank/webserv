@@ -20,3 +20,5 @@ Socket::~Socket()
 }
 
 int Socket::get_socket_fd() { return socket_fd; };
+
+sockaddr_in &Socket::get_addr() { return addr; };

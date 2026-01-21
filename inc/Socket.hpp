@@ -14,4 +14,5 @@ class Socket
 		Socket(const Socket &other);
 		~Socket();
 		int get_socket_fd();
+		sockaddr_in &get_addr();
 };

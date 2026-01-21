@@ -1,5 +1,6 @@
 #include <iostream>
 #include <vector>
+#include <sys/select.h>
 #include "config.hpp"
 #include "Socket.hpp"
 
@@ -28,9 +29,7 @@ int main(int argc, char **argv)
 		std::vector<Socket> sockets = setup_sockets(config.socket_pairs);
 		while (server_running)
 		{
-			server_running = false;
-			
-			// accept(sock.get_socket_fd());
+			select()
 		}
 	}
 	catch(const std::exception& e)
