@@ -38,8 +38,8 @@ int main(int argc, char **argv)
 		Config config(argv[1]);
 		bool server_running = true;
 		std::vector<Socket> sockets = setup_sockets(config.socket_pairs);
-		// while (server_running)
-		// {
+		while (server_running)
+		{
 			fd_set socket_fds = setup_socket_fds(sockets);
 			int max_fd = 0;
 			for (size_t i = 0 ; i < sockets.size() ; i ++)
@@ -47,7 +47,7 @@ int main(int argc, char **argv)
 					max_fd = sockets[i].get_socket_fd();
 			if (select(max_fd + 1, &socket_fds, NULL, NULL, NULL) > 0)
 				handle_client(&socket_fds, sockets);
-		// }
+		}
 	}
 	catch(const std::exception& e)
 	{

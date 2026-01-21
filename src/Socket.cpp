@@ -2,15 +2,23 @@
 #include "Socket.hpp"
 #include <unistd.h>
 #include <iostream>
+#include <string.h>
 
 Socket::Socket(unsigned int port)
 {
 	socket_fd = socket(AF_INET, SOCK_STREAM, 0);
+	
+	const int reuse = 1;
+	setsockopt(socket_fd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse));
+	
 	addr.sin_port = htons(port);
 	addr.sin_family = AF_INET;
 	addr.sin_addr.s_addr = INADDR_ANY;
-	bind(socket_fd, reinterpret_cast<struct sockaddr*>(&addr), sizeof(addr));
-	listen(socket_fd, 10);
+	
+	if (bind(socket_fd, reinterpret_cast<struct sockaddr*>(&addr), sizeof(addr)) == -1 || listen(socket_fd, 10) == -1)
+	{	
+		throw std::runtime_error(strerror(errno));
+	}
 	std::cout << "webserver listening on port " << port << '\n';
 }
 
