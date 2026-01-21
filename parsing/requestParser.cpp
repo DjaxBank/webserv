@@ -41,14 +41,14 @@ HttpMethod string_tomethod(const std::string& str)
     if (str == "DELETE") return HttpMethod::DELETE;
     return HttpMethod::NONE;
 }
-
+/* Converts string to HttpVersion enum; returns NONE if invalid */
 HttpVersion string_toversion(const std::string &version)
 {
     if (version == "HTTP/1.0") return HttpVersion::HTTP_1_0;
     if (version == "HTTP/1.1") return HttpVersion::HTTP_1_1;
     return HttpVersion::NONE;
 }
-
+/* Converts HttpVersion enum to string; returns "NONE" if invalid*/
 std::string version_tostring(const HttpVersion &version)
 {
     switch (version)
@@ -98,12 +98,6 @@ void handle_method(HttpMethod method)
     }
 }
 
-/* Wrapper to convert string to HttpMethod enum */
-HttpMethod RequestParser::getMethod(const std::string &str) const
-{
-    return (string_tomethod(str));
-}
-
 /* Sets parser state to ERROR and logs debug info
  * @param reason: optional error description
  * @param line: the problematic line being parsed
@@ -145,7 +139,7 @@ void RequestParser::parseRequestLine()
     if (pos == std::string::npos)
         return setErrorAndReturn("no space after method", request_line);
     std::string method_token = request_line.substr(0, pos);
-    HttpMethod method = getMethod(method_token);
+    HttpMethod method = string_tomethod(method_token);
     if (method == HttpMethod::NONE)
         return setErrorAndReturn("invalid method", request_line);
     m_request.setMethod(method);
@@ -227,6 +221,8 @@ std::string RequestParser::getHeader(const std::string& key) const
 
 bool RequestParser::validateContentLength(const std::string& value, size_t& out_length)
 {
+    size_t one_hundread_MB = 104857600;
+
     if (value.empty())
         return false;
     for (unsigned char c : value)
@@ -240,6 +236,8 @@ bool RequestParser::validateContentLength(const std::string& value, size_t& out_
         return false;
     if (!sstream.eof())
         return false;
+    if (out_length > one_hundread_MB)
+        return false;
     return true;
 }
 
@@ -247,6 +245,8 @@ bool RequestParser::validateContentLength(const std::string& value, size_t& out_
 void RequestParser::parseHeaders()
 {
     const size_t MAX_HEADER_SIZE = 32768;
+    const size_t MAX_TOTAL_HEADER_SIZE = 262144;
+    size_t total_header_size = 0;
     while (true)
     {
         size_t pos = m_buffer.find("\r\n");
@@ -254,6 +254,9 @@ void RequestParser::parseHeaders()
             return;
         if (pos > MAX_HEADER_SIZE)
             return setErrorAndReturn("header line too long", "");
+        total_header_size += pos + 2;
+        if (total_header_size > MAX_TOTAL_HEADER_SIZE)
+            return setErrorAndReturn("total header file size too large", "");
         std::string header_token = m_buffer.substr(0, pos);
         m_buffer.erase(0, pos + 2);
         if (header_token.empty()) {
@@ -280,35 +283,28 @@ void RequestParser::parseHeaders()
 
     if (!t_encoding.empty() && !c_length.empty())
         return setErrorAndReturn("transfer encoding and content length present in header", "");
-    if (m_request.getVersion() == HttpVersion::HTTP_1_1 && c_length.empty())
-        return setErrorAndReturn("HTTP/1.1 requires content_length", "");
+
+    if (!t_encoding.empty())
+    {
+        if (t_encoding.find("chunked") != std::string::npos)
+        {
+            m_request.setChunked(true);
+            m_state = ParserState::BODY;
+            return;
+        }
+        return setErrorAndReturn("unsupported transfer-encoding method", "");
+    }
     if (!c_length.empty())
     {
         size_t content_len;
         if (!validateContentLength(c_length, content_len))
             return setErrorAndReturn("malformed content-length", "");
         m_request.setContentLen(content_len);
+        m_state = ParserState::BODY;
+        return;
     }
-    else
-    {
-        if (t_encoding.find("chunked") != std::string::npos)
-            m_request.setChunked(true);
-        else
-            m_request.setChunked(false);
-    }
-
-
+    m_state = ParserState::COMPLETE;
     
-
-    // To detmine if I have a body to parse I need one of the following
-        // 1. Transfer-Encoding
-        // 2. Content-Length
-    // NOT both though.
-    // If I have one of them, I need to validate and parse it
-    // if its not empty I go to body 
-
-
-    // also based on method I may need content length and transfer encoding i think
 }
 
 /* Needs implementing */
@@ -322,10 +318,6 @@ void RequestParser::parseBody()
  * @param data: chunk of HTTP request data
  * @return: false if ERROR state reached, true otherwise
  * Use: call repeatedly with incoming socket data until parsing completes
- * 
- *
- * ***CURRENTLY A WORK AROUND, SOCKET DATA NOT IMPLEMENTED***
- * *** check main in same file for workaround ***
  */
 bool RequestParser::fetch_data(const std::string& data)
 {
@@ -378,13 +370,6 @@ void RequestParser::debugState(const char* label) const
             << " \nbuffer_prefix=\"" << m_buffer.substr(0, 80) << "\""
             << "\n------------------------------------\n";
 }
-
-
-/* Searchers for key in headers and returns value as a string
-    @param key for the value you are trying to find
-    e.g. "Host"
-*/
-
 
 int main() {
     RequestParser parser;

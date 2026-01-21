@@ -31,7 +31,6 @@ class RequestParser
 		RequestParser(const RequestParser& other);
 		RequestParser& operator=(const RequestParser& other);
 		~RequestParser();
-		HttpMethod getMethod(const std::string &str) const;
 		ParserState getState() const;
 		bool fetch_data(const std::string& data);
 		void debugState(const char* label = "DEBUG") const;
