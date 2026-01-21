@@ -1,6 +1,7 @@
 #include <sys/socket.h>
 #include "Socket.hpp"
 #include <unistd.h>
+#include <iostream>
 
 Socket::Socket(unsigned int port)
 {
@@ -10,6 +11,7 @@ Socket::Socket(unsigned int port)
 	addr.sin_addr.s_addr = INADDR_ANY;
 	bind(socket_fd, reinterpret_cast<struct sockaddr*>(&addr), sizeof(addr));
 	listen(socket_fd, 10);
+	std::cout << "webserver listening on port " << port << '\n';
 }
 
 Socket::Socket(const Socket &other) : socket_fd(other.socket_fd), addr(other.addr){}
