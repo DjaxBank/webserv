@@ -8,7 +8,7 @@ Socket::Socket(unsigned int port)
 	addr.sin_port = htons(port);
 	addr.sin_family = AF_INET;
 	addr.sin_addr.s_addr = INADDR_ANY;
-	bind(socket_fd, (struct sockaddr*)&addr, sizeof(addr));
+	bind(socket_fd, reinterpret_cast<struct sockaddr*>(&addr), sizeof(addr));
 	listen(socket_fd, 10);
 }
 

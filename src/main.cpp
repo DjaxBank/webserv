@@ -45,9 +45,8 @@ int main(int argc, char **argv)
 			for (size_t i = 0 ; i < sockets.size() ; i ++)
 				if (sockets[i].get_socket_fd() > max_fd)
 					max_fd = sockets[i].get_socket_fd();
-			size_t active_amount = select(max_fd + 1, &socket_fds, NULL, NULL, NULL);
-			if (active_amount > 0)
-				handle_client(active_amount, socket_fds, sockets);
+			if (select(max_fd + 1, &socket_fds, NULL, NULL, NULL) > 0)
+				handle_client(&socket_fds, sockets);
 			else
 				std::cerr << "select error occured\n";
 		}
