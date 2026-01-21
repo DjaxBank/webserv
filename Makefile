@@ -1,8 +1,8 @@
 NAME = webserv
-SRC = src/main.cpp src/Config.cpp src/Socket.cpp src/handle_client.cpp
+SRC = parsing/Request.cpp parsing/requestParser.cpp
 OBJS = $(SRC:.cpp=.o)
 CC = c++
-FLAGS = -Wall -Wextra -I inc/ -g
+FLAGS = -Wall -Wextra -g
 
 all: $(NAME)
 
