@@ -1,0 +1,51 @@
+#ifndef REQUESTPARSER_HPP
+#define REQUESTPARSER_HPP
+
+#include <string>
+#include "../inc/Request.hpp"
+
+enum class ParserState
+{
+	REQUEST_LINE,
+	HEADERS,
+	BODY,
+	COMPLETE,
+	ERROR,
+};
+
+std::string method_tostring(HttpMethod method);
+HttpMethod string_tomethod(const std::string& str);
+
+// this will be put in request handling later
+// implementation example in requestParser.cpp
+void handle_method(HttpMethod method);
+
+class RequestParser
+{
+	private:
+		std::string m_buffer;
+		ParserState m_state;
+		Request m_request;
+	public:
+		RequestParser();
+		RequestParser(const RequestParser& other);
+		RequestParser& operator=(const RequestParser& other);
+		~RequestParser();
+		HttpMethod getMethod(const std::string &str) const;
+		ParserState getState() const;
+		bool fetch_data(const std::string& data);
+		void debugState(const char* label = "DEBUG") const;
+		std::string getHeader(const std::string& key) const; 
+	private:
+		void parseRequestLine();
+		void parseHeaders();
+		void parseBody();
+		void setErrorAndReturn(const char* reason = "", const std::string& line = "");
+		bool validateHTTPVersion(const std::string& version);
+		std::string extractKey(const std::string& header_token);
+        std::string extractValue(const std::string& header_token);
+        std::string trimValue(const std::string& value);
+
+};
+
+#endif

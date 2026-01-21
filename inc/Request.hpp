@@ -4,12 +4,27 @@
 #include <string>
 #include <map>
 
+enum class HttpMethod
+{
+	NONE,
+	GET,
+	POST,
+	DELETE,
+};
+
+enum class HttpVersion
+{
+	NONE,
+	HTTP_1_0,
+	HTTP_1_1,
+};
+
 class Request
 {
 	private:
-		std::string m_method;
-		std::string m_path;
-		std::string m_version;
+		HttpMethod m_method;
+		std::string m_target;
+		HttpVersion m_version;
 		std::map<std::string, std::string> m_headers;
 		std::string m_body;
 	public:
@@ -18,17 +33,19 @@ class Request
 		Request& operator=(const Request& other);
 		~Request();
 
-	const std::string& getMethod() const;
-	const std::string& getPath() const;
-	const std::string& getVersion() const;
-	const std::map<std::string, std::string>& getHeaders() const;
-	const std::string& getBody() const;
-		
-	void setMethod(const std::string& method);
-	void setPath(const std::string& path);
-	void setVersion(const std::string& version);
-	void setHeaders(const std::map<std::string, std::string>& headers);
-	void setBody(const std::string& body);
+		const HttpMethod& getMethod() const;
+		const std::string& getTarget() const;
+		const HttpVersion& getVersion() const;
+		const std::map<std::string, std::string>& getHeaders() const;
+		const std::string& getBody() const;
+
+		void setMethod(const HttpMethod& method);
+		void setTarget(const std::string& target);
+		void setVersion(const HttpVersion& version);
+		void setHeaders(const std::map<std::string, std::string>& headers);
+		void setBody(const std::string& body);
+
+		void addHeader(const std::string& key, const std::string& value);
 };
 
 #endif
