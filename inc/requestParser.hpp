@@ -4,14 +4,6 @@
 #include <string>
 #include "../inc/Request.hpp"
 
-enum class HttpMethod
-{
-	GET,
-	POST,
-	DELETE,
-	NONE,
-};
-
 enum class ParserState
 {
 	REQUEST_LINE,

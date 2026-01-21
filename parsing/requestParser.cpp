@@ -1,7 +1,6 @@
 #include "../inc/requestParser.hpp"
 #include <sstream>
 #include <iostream>
-#include "../inc/requestParser.hpp"
 #include "../inc/Request.hpp"
 
 RequestParser::RequestParser() : m_buffer(), m_state(ParserState::REQUEST_LINE), m_request() {}
@@ -42,6 +41,24 @@ HttpMethod string_tomethod(const std::string& str)
     return HttpMethod::NONE;
 }
 
+HttpVersion string_toversion(const std::string &version)
+{
+    if (version == "HTTP/1.0") return HttpVersion::HTTP_1_0;
+    if (version == "HTTP/1.1") return HttpVersion::HTTP_1_1;
+    return HttpVersion::NONE;
+}
+
+std::string version_tostring(const HttpVersion &version)
+{
+    switch (version)
+    {
+        case HttpVersion::HTTP_1_0: return "HTTP/1.0";
+        case HttpVersion::HTTP_1_1: return "HTTP/1.1";
+        case HttpVersion::NONE: return "NONE";
+    }
+    return "NONE";
+}
+
 /* Converts ParserState enum to string */
 std::string state_tostring(ParserState state)
 {
@@ -62,8 +79,6 @@ void handle_method(HttpMethod method)
     switch (method)
     {
         case HttpMethod::GET:
-            // implement
-            break; 
             // implement
             break; 
         case HttpMethod::POST:
@@ -103,14 +118,12 @@ void RequestParser::setErrorAndReturn(const char* reason, const std::string& lin
 }
 
 /* Validates HTTP version string against supported versions
- * Currently accepts: HTTP/1.0, HTTP/1.1, HTTP/2.0, HTTP/3.0
+ * Currently accepts: HTTP/1.0, HTTP/1.1
  */
 bool RequestParser::validateHTTPVersion(const std::string& version)
 {
     return version == "HTTP/1.0"
-        || version == "HTTP/1.1"
-        || version == "HTTP/2.0"
-        || version == "HTTP/3.0";
+        || version == "HTTP/1.1";
 }
 
 /* Parses the HTTP request line: METHOD TARGET VERSION
@@ -134,7 +147,7 @@ void RequestParser::parseRequestLine()
     HttpMethod method = getMethod(method_token);
     if (method == HttpMethod::NONE)
         return setErrorAndReturn("invalid method", request_line);
-    m_request.setMethod(method_tostring(method));
+    m_request.setMethod(method);
     request_line = request_line.substr(pos + 1);
 
     // extract target
@@ -153,7 +166,7 @@ void RequestParser::parseRequestLine()
         return setErrorAndReturn("version missing or has spaces", version_token);
     if (!validateHTTPVersion(version_token))
         return setErrorAndReturn("invalid HTTP version", version_token);
-    m_request.setVersion(version_token);
+    m_request.setVersion(string_toversion(version_token));
 
 	// no errors. ready for next state of parsing
     m_state = ParserState::HEADERS;
@@ -215,7 +228,7 @@ void RequestParser::parseHeaders()
         std::string header_token = m_buffer.substr(0, pos);
         m_buffer.erase(0, pos + 2);
         if (header_token.empty()) {
-            HttpMethod method = string_tomethod(m_request.getMethod());
+            HttpMethod method = m_request.getMethod();
             if (method == HttpMethod::GET || method == HttpMethod::DELETE)
                 m_state = ParserState::COMPLETE;
             else
@@ -231,6 +244,7 @@ void RequestParser::parseHeaders()
 
         m_request.addHeader(key, value);
     }
+    // if (m_request.getVersion() == )
     // to do
     // validate required headers if HTTP version == 1.1
     // check based on method if I expect a body or not and change state based on that
@@ -289,9 +303,9 @@ void RequestParser::debugState(const char* label) const
     std::cerr << "\n------------------------------------"
             << "\n[ParserState] " << (label ? label : "")
             << " \nstate=" << state_tostring(m_state) << "\""
-            << " \nmethod=\"" << m_request.getMethod() << "\""
+            << " \nmethod=\"" << method_tostring(m_request.getMethod()) << "\""
             << " \ntarget=\"" << m_request.getTarget() << "\""
-            << " \nversion=\"" << m_request.getVersion() << "\""
+            << " \nversion=\"" << version_tostring(m_request.getVersion()) << "\""
             << " \nheaders=" << m_request.getHeaders().size() << "\n";
             
     const std::map<std::string, std::string>& headers = m_request.getHeaders();
