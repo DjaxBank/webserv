@@ -35,13 +35,14 @@ class RequestParser
 		ParserState getState() const;
 		bool fetch_data(const std::string& data);
 		void debugState(const char* label = "DEBUG") const;
-		std::string getHeader(const std::string& key) const; 
+		std::string getHeader(const std::string& key) const;
 	private:
 		void parseRequestLine();
 		void parseHeaders();
 		void parseBody();
 		void setErrorAndReturn(const char* reason = "", const std::string& line = "");
 		bool validateHTTPVersion(const std::string& version);
+		bool validateContentLength(const std::string& value, size_t& out_length);
 		std::string extractKey(const std::string& header_token);
         std::string extractValue(const std::string& header_token);
         std::string trimValue(const std::string& value);

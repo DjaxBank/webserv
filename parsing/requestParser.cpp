@@ -2,6 +2,7 @@
 #include <sstream>
 #include <iostream>
 #include "../inc/Request.hpp"
+#include <cctype>
 
 RequestParser::RequestParser() : m_buffer(), m_state(ParserState::REQUEST_LINE), m_request() {}
 
@@ -224,7 +225,23 @@ std::string RequestParser::getHeader(const std::string& key) const
     
 }
 
-void RouteParsing()
+bool RequestParser::validateContentLength(const std::string& value, size_t& out_length)
+{
+    if (value.empty())
+        return false;
+    for (unsigned char c : value)
+    {
+        if (!std::isdigit(c))
+            return false;
+    }
+
+    std::stringstream sstream(value);
+    if (!(sstream >> out_length))
+        return false;
+    if (!sstream.eof())
+        return false;
+    return true;
+}
 
 /* Parses header of HTTP request and adds them to a request's key:value map */
 void RequestParser::parseHeaders()
@@ -257,6 +274,29 @@ void RequestParser::parseHeaders()
         if (getHeader("Host").empty())
             return setErrorAndReturn("missing Host header", "");
     }
+
+    const std::string t_encoding = getHeader("Transfer-Encoding");
+    const std::string c_length = getHeader("Content-Length"); 
+
+    if (!t_encoding.empty() && !c_length.empty())
+        return setErrorAndReturn("transfer encoding and content length present in header", "");
+    if (m_request.getVersion() == HttpVersion::HTTP_1_1 && c_length.empty())
+        return setErrorAndReturn("HTTP/1.1 requires content_length", "");
+    if (!c_length.empty())
+    {
+        size_t content_len;
+        if (!validateContentLength(c_length, content_len))
+            return setErrorAndReturn("malformed content-length", "");
+        m_request.setContentLen(content_len);
+    }
+    else
+    {
+        if (t_encoding.find("chunked") != std::string::npos)
+            m_request.setChunked(true);
+        else
+            m_request.setChunked(false);
+    }
+
 
     
 
@@ -400,7 +440,7 @@ int main() {
             return 1;
         }
     }
-    
+ 
     if (parser.getState() == ParserState::COMPLETE)
     {
         std::cout << "Parsed successfully\n";
