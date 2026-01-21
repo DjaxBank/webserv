@@ -25,7 +25,7 @@ Request::~Request()
 {
 };
 
-const std::string& Request::getMethod() const
+const HttpMethod& Request::getMethod() const
 {
 	return(this->m_method);
 }
@@ -35,7 +35,7 @@ const std::string& Request::getTarget() const
 	return(this->m_target);
 }
 
-const std::string& Request::getVersion() const
+const HttpVersion& Request::getVersion() const
 {
 	return(this->m_version);
 }
@@ -50,7 +50,7 @@ const std::string& Request::getBody() const
 	return(this->m_body);
 }
 
-void Request::setMethod(const std::string& method)
+void Request::setMethod(const HttpMethod& method)
 {
 	m_method = method;
 }
@@ -58,7 +58,7 @@ void Request::setTarget(const std::string& path)
 {
 	m_target = path;
 }
-void Request::setVersion(const std::string& version)
+void Request::setVersion(const HttpVersion& version)
 {
 	m_version = version;
 }
