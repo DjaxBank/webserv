@@ -224,7 +224,7 @@ std::string RequestParser::getHeader(const std::string& key) const
     
 }
 
-void RouteParsing()
+void RouteParsing();
 
 /* Parses header of HTTP request and adds them to a request's key:value map */
 void RequestParser::parseHeaders()
@@ -346,71 +346,71 @@ void RequestParser::debugState(const char* label) const
 */
 
 
-int main() {
-    RequestParser parser;
+// int main() {
+//     RequestParser parser;
 
-    std::string mock_request = "GET /index.html HTTP/1.1\r\n"
-                                "Host: localhost:8080\r\n"
-                                "User-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36\r\n"
-                                "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8\r\n"
-                                "Accept-Language: en-US,en;q=0.9\r\n"
-                                "Accept-Encoding: gzip, deflate\r\n"
-                                "Connection: keep-alive\r\n"
-                                "Upgrade-Insecure-Requests: 1\r\n"
-                                "\r\n"
-                                "\r\n"
-                                "\r\n"
-                                "\r\n";
+//     std::string mock_request = "GET /index.html HTTP/1.1\r\n"
+//                                 "Host: localhost:8080\r\n"
+//                                 "User-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36\r\n"
+//                                 "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8\r\n"
+//                                 "Accept-Language: en-US,en;q=0.9\r\n"
+//                                 "Accept-Encoding: gzip, deflate\r\n"
+//                                 "Connection: keep-alive\r\n"
+//                                 "Upgrade-Insecure-Requests: 1\r\n"
+//                                 "\r\n"
+//                                 "\r\n"
+//                                 "\r\n"
+//                                 "\r\n";
     
-    // AI generated test case to simulate socket feeding data.
-    // just wanted a quick check to make sure what I'm doing is portable
+//     // AI generated test case to simulate socket feeding data.
+//     // just wanted a quick check to make sure what I'm doing is portable
 
-    // Simulate socket recv() by feeding data in chunks
-    // Real socket: recv(socket_fd, buffer, 1024, 0)
+//     // Simulate socket recv() by feeding data in chunks
+//     // Real socket: recv(socket_fd, buffer, 1024, 0)
     
-    size_t chunk_size = 50;  // Simulate small socket recv chunks
-    size_t offset = 0;
+//     size_t chunk_size = 50;  // Simulate small socket recv chunks
+//     size_t offset = 0;
     
-    while (offset < mock_request.size())
-    {
-        // Simulate recv() call - get chunk of data
-        size_t bytes_to_read = std::min(chunk_size, mock_request.size() - offset);
-        std::string chunk = mock_request.substr(offset, bytes_to_read);
-        offset += bytes_to_read;
+//     while (offset < mock_request.size())
+//     {
+//         // Simulate recv() call - get chunk of data
+//         size_t bytes_to_read = std::min(chunk_size, mock_request.size() - offset);
+//         std::string chunk = mock_request.substr(offset, bytes_to_read);
+//         offset += bytes_to_read;
         
-        std::cout << ">> Recv chunk [" << bytes_to_read << " bytes]: " 
-                  << chunk.substr(0, 30) << (chunk.size() > 30 ? "..." : "") << "\n";
+//         std::cout << ">> Recv chunk [" << bytes_to_read << " bytes]: " 
+//                   << chunk.substr(0, 30) << (chunk.size() > 30 ? "..." : "") << "\n";
         
-        // Feed chunk to parser
-        if (!parser.fetch_data(chunk))
-        {
-            std::cerr << "Parse failed\n";
-            return 1;
-        }
+//         // Feed chunk to parser
+//         if (!parser.fetch_data(chunk))
+//         {
+//             std::cerr << "Parse failed\n";
+//             return 1;
+//         }
         
-        // Check if parsing is complete
-        if (parser.getState() == ParserState::COMPLETE)
-        {
-            std::cout << "Parsing complete!\n";
-            break;
-        }
-        else if (parser.getState() == ParserState::ERROR)
-        {
-            std::cerr << "Parse error\n";
-            return 1;
-        }
-    }
+//         // Check if parsing is complete
+//         if (parser.getState() == ParserState::COMPLETE)
+//         {
+//             std::cout << "Parsing complete!\n";
+//             break;
+//         }
+//         else if (parser.getState() == ParserState::ERROR)
+//         {
+//             std::cerr << "Parse error\n";
+//             return 1;
+//         }
+//     }
     
-    if (parser.getState() == ParserState::COMPLETE)
-    {
-        std::cout << "Parsed successfully\n";
-        parser.debugState();
-    }
-    else
-    {
-        std::cerr << "Parsing incomplete\n";
-        return 1;
-    }
+//     if (parser.getState() == ParserState::COMPLETE)
+//     {
+//         std::cout << "Parsed successfully\n";
+//         parser.debugState();
+//     }
+//     else
+//     {
+//         std::cerr << "Parsing incomplete\n";
+//         return 1;
+//     }
     
-    return 0;
-}
+//     return 0;
+// }
