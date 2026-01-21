@@ -26,11 +26,8 @@ std::string method_tostring(HttpMethod method)
     switch(method)
     {
         case HttpMethod::GET: return "GET";
-        case HttpMethod::HEAD: return "HEAD";
         case HttpMethod::POST: return "POST";
-        case HttpMethod::PUT: return "PUT";
         case HttpMethod::DELETE: return "DELETE";
-        case HttpMethod::OPTIONS: return "OPTIONS";
         case HttpMethod::NONE: return "NONE";
     }
     return "NONE";
@@ -40,11 +37,8 @@ std::string method_tostring(HttpMethod method)
 HttpMethod string_tomethod(const std::string& str)
 {
     if (str == "GET") return HttpMethod::GET;
-    if (str == "HEAD") return HttpMethod::HEAD;
     if (str == "POST") return HttpMethod::POST;
-    if (str == "PUT") return HttpMethod::PUT;
     if (str == "DELETE") return HttpMethod::DELETE;
-    if (str == "OPTIONS") return HttpMethod::OPTIONS;
     return HttpMethod::NONE;
 }
 
@@ -70,19 +64,16 @@ void handle_method(HttpMethod method)
         case HttpMethod::GET:
             // implement
             break; 
-        case HttpMethod::HEAD: 
             // implement
             break; 
         case HttpMethod::POST:
             // implement
             break; 
-        case HttpMethod::PUT:
             // implement
             break; 
         case HttpMethod::DELETE:
             // implement
             break; 
-        case HttpMethod::OPTIONS:
             // implement
             break; 
         case HttpMethod::NONE:
@@ -225,7 +216,7 @@ void RequestParser::parseHeaders()
         m_buffer.erase(0, pos + 2);
         if (header_token.empty()) {
             HttpMethod method = string_tomethod(m_request.getMethod());
-            if (method == HttpMethod::GET || method == HttpMethod::HEAD || method == HttpMethod::DELETE)
+            if (method == HttpMethod::GET || method == HttpMethod::DELETE)
                 m_state = ParserState::COMPLETE;
             else
                 m_state = ParserState::BODY;
@@ -343,6 +334,9 @@ int main() {
                                 "Accept-Encoding: gzip, deflate\r\n"
                                 "Connection: keep-alive\r\n"
                                 "Upgrade-Insecure-Requests: 1\r\n"
+                                "\r\n"
+                                "\r\n"
+                                "\r\n"
                                 "\r\n";
     
     // AI generated test case to simulate socket feeding data.

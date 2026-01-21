@@ -7,11 +7,8 @@
 enum class HttpMethod
 {
 	GET,
-	HEAD,
 	POST,
-	PUT,
 	DELETE,
-	OPTIONS,
 	NONE,
 };
 
