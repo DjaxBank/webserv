@@ -211,13 +211,25 @@ std::string RequestParser::trimValue(const std::string& value)
     
     return result;
 }
+std::string RequestParser::getHeader(const std::string& key) const
+{
+    const auto& headers = m_request.getHeaders();
+    auto iterator = headers.find(key);
+    if (iterator != headers.end())
+    {
+        return iterator->second;
+    }
+    else
+        return "";
+    
+}
 
+void RouteParsing()
 
 /* Parses header of HTTP request and adds them to a request's key:value map */
 void RequestParser::parseHeaders()
 {
     const size_t MAX_HEADER_SIZE = 32768;
-    // Expected headers are like "Host: localhost:8080\r\n"
     while (true)
     {
         size_t pos = m_buffer.find("\r\n");
@@ -228,12 +240,7 @@ void RequestParser::parseHeaders()
         std::string header_token = m_buffer.substr(0, pos);
         m_buffer.erase(0, pos + 2);
         if (header_token.empty()) {
-            HttpMethod method = m_request.getMethod();
-            if (method == HttpMethod::GET || method == HttpMethod::DELETE)
-                m_state = ParserState::COMPLETE;
-            else
-                m_state = ParserState::BODY;
-            return;
+            break;
         }
         
         std::string key = extractKey(header_token);
@@ -244,10 +251,23 @@ void RequestParser::parseHeaders()
 
         m_request.addHeader(key, value);
     }
-    // if (m_request.getVersion() == )
-    // to do
-    // validate required headers if HTTP version == 1.1
-    // check based on method if I expect a body or not and change state based on that
+
+    if (m_request.getVersion() == HttpVersion::HTTP_1_1)
+    {
+        if (getHeader("Host").empty())
+            return setErrorAndReturn("missing Host header", "");
+    }
+
+    
+
+    // To detmine if I have a body to parse I need one of the following
+        // 1. Transfer-Encoding
+        // 2. Content-Length
+    // NOT both though.
+    // If I have one of them, I need to validate and parse it
+    // if its not empty I go to body 
+
+
     // also based on method I may need content length and transfer encoding i think
 }
 
@@ -324,18 +344,7 @@ void RequestParser::debugState(const char* label) const
     @param key for the value you are trying to find
     e.g. "Host"
 */
-std::string RequestParser::getHeader(const std::string& key) const
-{
-    const auto& headers = m_request.getHeaders();
-    auto iterator = headers.find(key);
-    if (iterator != headers.end())
-    {
-        return iterator->second;
-    }
-    else
-        return "";
-    
-}
+
 
 int main() {
     RequestParser parser;
@@ -343,7 +352,7 @@ int main() {
     std::string mock_request = "GET /index.html HTTP/1.1\r\n"
                                 "Host: localhost:8080\r\n"
                                 "User-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36\r\n"
-                                "Accept:: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8\r\n"
+                                "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8\r\n"
                                 "Accept-Language: en-US,en;q=0.9\r\n"
                                 "Accept-Encoding: gzip, deflate\r\n"
                                 "Connection: keep-alive\r\n"
