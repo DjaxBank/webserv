@@ -4,4 +4,4 @@
 #include <cstdlib>
 #include "Socket.hpp"
 
-void handle_client(const size_t active_amount, fd_set &socket_fds, std::vector<Socket> &sockets);
+void handle_client(fd_set *socket_fds, std::vector<Socket> &sockets);
