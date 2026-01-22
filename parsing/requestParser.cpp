@@ -4,6 +4,12 @@
 #include "../inc/Request.hpp"
 #include <cctype>
 
+// Important to mitigate DOS attacks
+// Max size of a single header line must be less than 32kb
+const size_t RequestParser::MAX_HEADER_SIZE = 32768;
+// Make size of headers must be less than 256kb
+const size_t RequestParser::MAX_TOTAL_HEADER_SIZE = 262144;
+
 RequestParser::RequestParser() : m_buffer(), m_state(ParserState::REQUEST_LINE), m_request() {}
 
 RequestParser::RequestParser(const RequestParser& other)
@@ -112,6 +118,13 @@ void RequestParser::setErrorAndReturn(const char* reason, const std::string& lin
     m_state = ParserState::ERROR;
 }
 
+/* Wrapper for parsing failures */
+bool RequestParser::fail(const char* reason, const std::string& line)
+{
+    setErrorAndReturn(reason, line);
+    return false;
+}
+
 /* Validates HTTP version string against supported versions
  * Currently accepts: HTTP/1.0, HTTP/1.1
  */
@@ -121,6 +134,7 @@ bool RequestParser::validateHTTPVersion(const std::string& version)
         || version == "HTTP/1.1";
 }
 
+// CONSIDER REFACTORING
 /* Parses the HTTP request line: METHOD TARGET VERSION
  * Extracts and validates each component, then transitions state
  * Errors if any component is missing, empty, or invalid
@@ -206,6 +220,9 @@ std::string RequestParser::trimValue(const std::string& value)
     
     return result;
 }
+
+/* returns a header as a string based on a key value
+    @param key will return the value based on they or "" if key not found*/
 std::string RequestParser::getHeader(const std::string& key) const
 {
     const auto& headers = m_request.getHeaders();
@@ -219,6 +236,9 @@ std::string RequestParser::getHeader(const std::string& key) const
     
 }
 
+/* Helper function to validate content-lenght header
+    @param value is the value of the content-length key pair
+    @param out_length a size_t value to store the content length in after parsing */
 bool RequestParser::validateContentLength(const std::string& value, size_t& out_length)
 {
     size_t one_hundread_MB = 104857600;
@@ -240,12 +260,50 @@ bool RequestParser::validateContentLength(const std::string& value, size_t& out_
         return false;
     return true;
 }
+/* Enforces HTTP/1.1 requiring the "Host" header */
+bool RequestParser::validateRequiredHeaders()
+{
+    if (m_request.getVersion() == HttpVersion::HTTP_1_1 && getHeader("Host").empty())
+        return fail("missing Host header", "");
+    return true;
+}
+/* Parses metadata relating to body informaiton, determins if body is present
+    and its related headers are valid */
+bool RequestParser::parseBodyMetadata()
+{
+    const std::string t_encoding = getHeader("Transfer-Encoding");
+    const std::string c_length = getHeader("Content-Length");
+
+    if (!t_encoding.empty() && !c_length.empty())
+        return fail("transfer encoding and content length present in header", "");
+
+    if (!t_encoding.empty())
+    {
+        if (t_encoding.find("chunked") != std::string::npos)
+        {
+            m_request.setChunked(true);
+            m_state = ParserState::BODY;
+            return true;
+        }
+        return fail("unsupported transfer-encoding method", "");
+    }
+
+    if (!c_length.empty())
+    {
+        size_t content_len;
+        if (!validateContentLength(c_length, content_len))
+            return fail("malformed content-length", "");
+        m_request.setContentLen(content_len);
+        m_state = ParserState::BODY;
+        return true;
+    }
+
+    return true;
+}
 
 /* Parses header of HTTP request and adds them to a request's key:value map */
 void RequestParser::parseHeaders()
 {
-    const size_t MAX_HEADER_SIZE = 32768;
-    const size_t MAX_TOTAL_HEADER_SIZE = 262144;
     size_t total_header_size = 0;
     while (true)
     {
@@ -272,38 +330,13 @@ void RequestParser::parseHeaders()
         m_request.addHeader(key, value);
     }
 
-    if (m_request.getVersion() == HttpVersion::HTTP_1_1)
-    {
-        if (getHeader("Host").empty())
-            return setErrorAndReturn("missing Host header", "");
-    }
-
-    const std::string t_encoding = getHeader("Transfer-Encoding");
-    const std::string c_length = getHeader("Content-Length"); 
-
-    if (!t_encoding.empty() && !c_length.empty())
-        return setErrorAndReturn("transfer encoding and content length present in header", "");
-
-    if (!t_encoding.empty())
-    {
-        if (t_encoding.find("chunked") != std::string::npos)
-        {
-            m_request.setChunked(true);
-            m_state = ParserState::BODY;
-            return;
-        }
-        return setErrorAndReturn("unsupported transfer-encoding method", "");
-    }
-    if (!c_length.empty())
-    {
-        size_t content_len;
-        if (!validateContentLength(c_length, content_len))
-            return setErrorAndReturn("malformed content-length", "");
-        m_request.setContentLen(content_len);
-        m_state = ParserState::BODY;
+    if (!validateRequiredHeaders())
         return;
-    }
-    m_state = ParserState::COMPLETE;
+    if (!parseBodyMetadata())
+        return;
+
+    if (m_state != ParserState::BODY)
+        m_state = ParserState::COMPLETE;
     
 }
 
@@ -382,6 +415,8 @@ int main() {
                                 "Accept-Encoding: gzip, deflate\r\n"
                                 "Connection: keep-alive\r\n"
                                 "Upgrade-Insecure-Requests: 1\r\n"
+                                "Content-Length: 500\r\n"
+                                "Help: lol\r\n"
                                 "\r\n"
                                 "\r\n"
                                 "\r\n"
@@ -413,29 +448,18 @@ int main() {
             return 1;
         }
         
-        // Check if parsing is complete
-        if (parser.getState() == ParserState::COMPLETE)
-        {
-            std::cout << "Parsing complete!\n";
-            break;
-        }
-        else if (parser.getState() == ParserState::ERROR)
-        {
-            std::cerr << "Parse error\n";
-            return 1;
-        }
     }
  
     if (parser.getState() == ParserState::COMPLETE)
     {
         std::cout << "Parsed successfully\n";
         parser.debugState();
+        return 0;
     }
     else
-    {
+    {   
         std::cerr << "Parsing incomplete\n";
+        parser.debugState();
         return 1;
     }
-    
-    return 0;
 }

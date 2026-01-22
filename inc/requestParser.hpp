@@ -26,6 +26,8 @@ class RequestParser
 		std::string m_buffer;
 		ParserState m_state;
 		Request m_request;
+		static const size_t MAX_HEADER_SIZE;
+		static const size_t MAX_TOTAL_HEADER_SIZE;
 	public:
 		RequestParser();
 		RequestParser(const RequestParser& other);
@@ -40,6 +42,9 @@ class RequestParser
 		void parseHeaders();
 		void parseBody();
 		void setErrorAndReturn(const char* reason = "", const std::string& line = "");
+		bool fail(const char* reason = "", const std::string& line = "");
+		bool validateRequiredHeaders();
+		bool parseBodyMetadata();
 		bool validateHTTPVersion(const std::string& version);
 		bool validateContentLength(const std::string& value, size_t& out_length);
 		std::string extractKey(const std::string& header_token);
