@@ -279,7 +279,9 @@ bool RequestParser::parseBodyMetadata()
 
     if (!t_encoding.empty())
     {
-        if (t_encoding.find("chunked") != std::string::npos)
+        std::string encoding = trimValue(t_encoding);
+
+        if (encoding == "chunked")
         {
             m_request.setChunked(true);
             m_state = ParserState::BODY;
@@ -297,7 +299,7 @@ bool RequestParser::parseBodyMetadata()
         m_state = ParserState::BODY;
         return true;
     }
-
+    std::cout << "GOT HERE\n";
     return true;
 }
 
@@ -337,13 +339,34 @@ void RequestParser::parseHeaders()
 
     if (m_state != ParserState::BODY)
         m_state = ParserState::COMPLETE;
-    
 }
 
 /* Needs implementing */
 void RequestParser::parseBody()
 {
-    //implement
+    while(true)
+    {
+        std::cout << "hey\n";
+        if (m_request.getChunked() == true)
+        {
+            std::cout << "lol\n";
+            bool need_chunk_size = true;
+            size_t pos = m_buffer.find("\r\n");
+            if (pos == std::string::npos)
+                return;
+            if (need_chunk_size == true)
+            {
+                size_t chunk_size = std::stoul(m_buffer.substr(0, pos));
+                std::cout << "chunk_size = " << chunk_size << std::endl;
+                return;
+            }
+        }
+        else
+        {
+            std::cout << "Went in content-length\n";
+            return;
+        }
+    }
     return;
 }
 
@@ -415,12 +438,9 @@ int main() {
                                 "Accept-Encoding: gzip, deflate\r\n"
                                 "Connection: keep-alive\r\n"
                                 "Upgrade-Insecure-Requests: 1\r\n"
-                                "Content-Length: 500\r\n"
-                                "Help: lol\r\n"
-                                "\r\n"
-                                "\r\n"
-                                "\r\n"
-                                "\r\n";
+                                "Transfer-Encoding: chunked\r\n"
+                                "\r\n\r\n"
+                                "<1F>\r\n";
     
     // AI generated test case to simulate socket feeding data.
     // just wanted a quick check to make sure what I'm doing is portable
