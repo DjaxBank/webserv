@@ -7,8 +7,13 @@
 // Important to mitigate DOS attacks
 // Max size of a single header line must be less than 32kb
 const size_t RequestParser::MAX_HEADER_SIZE = 32768;
-// Make size of headers must be less than 256kb
+// Max size of headers must be less than 256kb
 const size_t RequestParser::MAX_TOTAL_HEADER_SIZE = 262144;
+
+// Max size of body must be 100MB or less
+const size_t RequestParser::MAX_BODY_SIZE = 100 * 1024 * 1024;
+// Max size of chunks must be 8MB or less
+const size_t RequestParser::MAX_CHUNK_SIZE = 8 * 1024 * 1024;
 
 RequestParser::RequestParser() : m_buffer(), m_state(ParserState::REQUEST_LINE), m_request() {}
 
@@ -343,7 +348,7 @@ void RequestParser::parseHeaders()
 
         m_request.addHeader(key, value);
     }
-    std::cout << "BUFFER VALUE PARSE HEADER: " << m_buffer << std::endl;
+
     if (!validateRequiredHeaders())
         return;
     if (!parseBodyMetadata())
@@ -352,7 +357,8 @@ void RequestParser::parseHeaders()
         m_state = ParserState::COMPLETE;
 }
 
-/* Needs implementing */
+// I probably need a function that grabs the next \r\n token
+
 void RequestParser::parseBody()
 {
     
@@ -360,19 +366,62 @@ void RequestParser::parseBody()
     {
         if (m_request.getChunked() == true)
         {
-            bool need_chunk_size = true;
             size_t pos = m_buffer.find("\r\n");
             if (pos == std::string::npos)
                 return;
             std::cout << "BUFFER VALUE: " << m_buffer << "POS: " << pos << std::endl;
-            if (need_chunk_size == true)
+            if (m_need_chunk_size == true)
             {
                 std::string hex_value = m_buffer.substr(0, pos);
                 std::cout << "HEX VALUE: " << hex_value << std::endl;
-                size_t chunk_size = std::stoul(hex_value, 0, 16);
-                std::cout << "chunk_size = " << chunk_size << std::endl;
-                return;
+                size_t chunk_size = 0;
+                try
+                {
+                    // implement trimming chunj extensions later
+                    chunk_size = std::stoul(hex_value, 0, 16);
+                    std::cout << "chunk_size value: " << chunk_size << std::endl;
+                }
+                catch (std::invalid_argument)
+                {
+                    return setErrorAndReturn("malformed chunk size", hex_value);
+                }
+                catch (std::out_of_range)
+                {
+                    return setErrorAndReturn("chunk size of out of range", "");
+                }
+                if (chunk_size == 0)
+                {
+                    std::cout << "enterd here\n";
+                    m_buffer.erase(0, pos + 2); // consume "0" line + CRLF
+                    // TODO: parse trailers; for now require CRLFCRLF
+                    size_t tpos = m_buffer.find("\r\n\r\n");
+                    if (tpos != std::string::npos)
+                        return; // wait for trailers to complete
+                    m_buffer.erase(0, tpos + 4);
+                    std::cout << "m_bufferrrrrrrrrrrrrrrrrrrrrrrrr: " << m_buffer << std::endl;
+                    m_state = ParserState::COMPLETE;
+                    return;
+                }
+                if (chunk_size > MAX_CHUNK_SIZE)
+                    return setErrorAndReturn("chunk size too large", "");
+                m_chunkBytesRemaining = chunk_size;
+                if (m_chunkBytesReceived + m_chunkBytesRemaining > MAX_BODY_SIZE)
+                    return setErrorAndReturn("body too large", "");
+                m_buffer.erase(0, pos + 2);
+                m_need_chunk_size = false;
             }
+
+            if (m_buffer.size() < m_chunkBytesRemaining + 2)
+                return;
+            m_request.appendBody(m_buffer.substr(0, m_chunkBytesRemaining));
+            m_chunkBytesReceived += m_chunkBytesRemaining;
+            std::string body(m_request.getBody().begin(), m_request.getBody().end());
+            std::cout << "Body: " << body << std::endl;
+            m_buffer.erase(0, m_chunkBytesRemaining);
+            if (m_buffer.compare(0, 2, "\r\n") != 0)
+                return setErrorAndReturn("chunk size and CRLF mismatch", m_buffer);
+            m_buffer.erase(0, 2);
+            m_need_chunk_size = true;
         }
         else
         {

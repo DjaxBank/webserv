@@ -28,9 +28,13 @@ class RequestParser
 		Request m_request;
 		static const size_t MAX_HEADER_SIZE;
 		static const size_t MAX_TOTAL_HEADER_SIZE;
+		static const size_t MAX_BODY_SIZE;
+		static const size_t MAX_CHUNK_SIZE;
 
+		bool m_need_chunk_size = true;
 		bool   m_chunkExpectSize = true;
 		size_t m_chunkBytesRemaining = 0;
+		size_t m_chunkBytesReceived = 0;
 		bool   m_parsingTrailers = false;
 
 	public:

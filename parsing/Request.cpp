@@ -47,7 +47,7 @@ const std::map<std::string, std::string>& Request::getHeaders() const
 	return(this->m_headers);
 }
 
-const std::string& Request::getBody() const
+const std::vector<uint8_t>& Request::getBody() const
 {
 	return(this->m_body);
 }
@@ -77,10 +77,6 @@ void Request::setHeaders(const std::map<std::string, std::string>& headers)
 {
 	m_headers = headers;
 }
-void Request::setBody(const std::string& body)
-{
-    m_body = body;
-}
 
 void Request::setChunked(bool chunked)
 {
@@ -95,5 +91,10 @@ void Request::setContentLen(size_t len)
 void Request::addHeader(const std::string& key, const std::string& value)
 {
 	m_headers[key] = value;
+}
+
+void Request::appendBody(const std::string& chunk)
+{
+	m_body.insert(m_body.begin(), chunk.begin(), chunk.end());
 }
 

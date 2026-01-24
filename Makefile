@@ -7,6 +7,7 @@ DEBUG_OBJS = $(DEBUG_SRC:.cpp=.o)
 CC = c++
 FLAGS = -Wall -Wextra -g
 DEBUG_FLAGS = -Wall -Wextra -g -O0 -DDEBUG
+CXXFLAGS += -D_GLIBCXX_DEBUG -g -O0
 
 all: $(NAME)
 
