@@ -28,6 +28,11 @@ class RequestParser
 		Request m_request;
 		static const size_t MAX_HEADER_SIZE;
 		static const size_t MAX_TOTAL_HEADER_SIZE;
+
+		bool   m_chunkExpectSize = true;
+		size_t m_chunkBytesRemaining = 0;
+		bool   m_parsingTrailers = false;
+
 	public:
 		RequestParser();
 		RequestParser(const RequestParser& other);
@@ -50,7 +55,8 @@ class RequestParser
 		std::string extractKey(const std::string& header_token);
         std::string extractValue(const std::string& header_token);
         std::string trimValue(const std::string& value);
-
+		bool readLine(std::string& outLine);
+		bool isHexToken(const std::string& s);
 };
 
 #endif

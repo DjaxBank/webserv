@@ -284,6 +284,10 @@ bool RequestParser::parseBodyMetadata()
         if (encoding == "chunked")
         {
             m_request.setChunked(true);
+            size_t pos = m_buffer.find("\r\n\r\n");
+            if (pos == std::string::npos)
+                return fail("malformed body seperation line", "");
+            m_buffer.erase(0, pos + 4);
             m_state = ParserState::BODY;
             return true;
         }
@@ -296,10 +300,13 @@ bool RequestParser::parseBodyMetadata()
         if (!validateContentLength(c_length, content_len))
             return fail("malformed content-length", "");
         m_request.setContentLen(content_len);
+        size_t pos = m_buffer.find("\r\n\r\n");
+            if (pos == std::string::npos)
+                return fail("malformed body seperation line", "");
+        m_buffer.erase(0, pos + 4);
         m_state = ParserState::BODY;
         return true;
     }
-    std::cout << "GOT HERE\n";
     return true;
 }
 
@@ -309,7 +316,12 @@ void RequestParser::parseHeaders()
     size_t total_header_size = 0;
     while (true)
     {
-        size_t pos = m_buffer.find("\r\n");
+        size_t pos = m_buffer.find("\r\n\r\n");
+        if (pos == 0)
+        {
+            break;
+        }
+        pos = m_buffer.find("\r\n");
         if (pos == std::string::npos)
             return;
         if (pos > MAX_HEADER_SIZE)
@@ -331,12 +343,11 @@ void RequestParser::parseHeaders()
 
         m_request.addHeader(key, value);
     }
-
+    std::cout << "BUFFER VALUE PARSE HEADER: " << m_buffer << std::endl;
     if (!validateRequiredHeaders())
         return;
     if (!parseBodyMetadata())
         return;
-
     if (m_state != ParserState::BODY)
         m_state = ParserState::COMPLETE;
 }
@@ -344,19 +355,21 @@ void RequestParser::parseHeaders()
 /* Needs implementing */
 void RequestParser::parseBody()
 {
+    
     while(true)
     {
-        std::cout << "hey\n";
         if (m_request.getChunked() == true)
         {
-            std::cout << "lol\n";
             bool need_chunk_size = true;
             size_t pos = m_buffer.find("\r\n");
             if (pos == std::string::npos)
                 return;
+            std::cout << "BUFFER VALUE: " << m_buffer << "POS: " << pos << std::endl;
             if (need_chunk_size == true)
             {
-                size_t chunk_size = std::stoul(m_buffer.substr(0, pos));
+                std::string hex_value = m_buffer.substr(0, pos);
+                std::cout << "HEX VALUE: " << hex_value << std::endl;
+                size_t chunk_size = std::stoul(hex_value, 0, 16);
                 std::cout << "chunk_size = " << chunk_size << std::endl;
                 return;
             }
@@ -378,22 +391,33 @@ void RequestParser::parseBody()
 bool RequestParser::fetch_data(const std::string& data)
 {
     m_buffer += data;
-    switch (m_state)
+    
+    while (m_state != ParserState::ERROR && m_state != ParserState::COMPLETE)
     {
-        case ParserState::REQUEST_LINE:
-            parseRequestLine();
-            break;
-        case ParserState::HEADERS:
-            parseHeaders();
-            break;
-        case ParserState::BODY:
-            parseBody();
-            break;
-        case ParserState::ERROR:
-            return false;
-        case ParserState::COMPLETE:
-            return true;
+        switch (m_state)
+        {
+            case ParserState::REQUEST_LINE:
+                parseRequestLine();
+                if (m_state == ParserState::REQUEST_LINE)
+                    return true;
+                break;
+            case ParserState::HEADERS:
+                parseHeaders();
+                if (m_state == ParserState::HEADERS)
+                    return true;
+                break;
+            case ParserState::BODY:
+                parseBody();
+                if (m_state == ParserState::BODY)
+                    return true;
+                break;
+            case ParserState::ERROR:
+                return false;
+            case ParserState::COMPLETE:
+                return true;
+        }
     }
+    
     return m_state != ParserState::ERROR;
 }
 
@@ -427,59 +451,4 @@ void RequestParser::debugState(const char* label) const
             << "\n------------------------------------\n";
 }
 
-int main() {
-    RequestParser parser;
-
-    std::string mock_request = "GET /index.html HTTP/1.1\r\n"
-                                "Host: localhost:8080\r\n"
-                                "User-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36\r\n"
-                                "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8\r\n"
-                                "Accept-Language: en-US,en;q=0.9\r\n"
-                                "Accept-Encoding: gzip, deflate\r\n"
-                                "Connection: keep-alive\r\n"
-                                "Upgrade-Insecure-Requests: 1\r\n"
-                                "Transfer-Encoding: chunked\r\n"
-                                "\r\n\r\n"
-                                "<1F>\r\n";
-    
-    // AI generated test case to simulate socket feeding data.
-    // just wanted a quick check to make sure what I'm doing is portable
-
-    // Simulate socket recv() by feeding data in chunks
-    // Real socket: recv(socket_fd, buffer, 1024, 0)
-    
-    size_t chunk_size = 50;  // Simulate small socket recv chunks
-    size_t offset = 0;
-    
-    while (offset < mock_request.size())
-    {
-        // Simulate recv() call - get chunk of data
-        size_t bytes_to_read = std::min(chunk_size, mock_request.size() - offset);
-        std::string chunk = mock_request.substr(offset, bytes_to_read);
-        offset += bytes_to_read;
-        
-        std::cout << ">> Recv chunk [" << bytes_to_read << " bytes]: " 
-                  << chunk.substr(0, 30) << (chunk.size() > 30 ? "..." : "") << "\n";
-        
-        // Feed chunk to parser
-        if (!parser.fetch_data(chunk))
-        {
-            std::cerr << "Parse failed\n";
-            return 1;
-        }
-        
-    }
- 
-    if (parser.getState() == ParserState::COMPLETE)
-    {
-        std::cout << "Parsed successfully\n";
-        parser.debugState();
-        return 0;
-    }
-    else
-    {   
-        std::cerr << "Parsing incomplete\n";
-        parser.debugState();
-        return 1;
-    }
-}
+// Main function removed - use debug_parser.cpp for testing
