@@ -20,6 +20,8 @@ int main() {
                             "Transfer-Encoding: chunked\r\n"
                             "\r\n\r\n"
                             "1F\r\n"
+                            "Hey this should be about31chars\r\n"
+                            "0\r\n"
                             "\r\n\r\n";
     
     // Simulate socket recv() by feeding data in chunks
@@ -35,8 +37,8 @@ int main() {
         std::string chunk = mock_request.substr(offset, bytes_to_read);
         offset += bytes_to_read;
         
-        std::cout << ">> Recv chunk [" << bytes_to_read << " bytes]: " 
-                  << (chunk.size() > 30 ? chunk.substr(0, 30) + "..." : chunk) << "\n";
+        // std::cout << ">> Recv chunk [" << bytes_to_read << " bytes]: " 
+        //           << (chunk.size() > 30 ? chunk.substr(0, 30) + "..." : chunk) << "\n";
         
         if (!parser.fetch_data(chunk))
         {
