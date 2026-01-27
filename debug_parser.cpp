@@ -21,8 +21,7 @@ int main() {
                             "\r\n\r\n"
                             "1F\r\n"
                             "Hey this should be about31chars\r\n"
-                            "0\r\n"
-                            "\r\n\r\n";
+                            "0\r\n";
     
     // Simulate socket recv() by feeding data in chunks
     size_t chunk_size = 50;
