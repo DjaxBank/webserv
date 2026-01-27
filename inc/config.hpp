@@ -16,7 +16,8 @@ class Config
 		Config();
 		Config(const Config &other);
 		Config &operator=(const Config &other);
-		void						ImportIntPortPairs(std::string value);
+		void	ImportIntPortPairs(std::string value);
+		void	Importhost(std::string raw);
 		void	CheckAllFull();		
 	public:	
 		std::vector<socket_pair>	socket_pairs;
