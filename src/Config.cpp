@@ -57,6 +57,12 @@ void Config::ImportIntPortPairs(std::string value)
 	}
 }
 
+void Config::Importhost(std::string raw)
+{
+	Host new_host;
+
+}
+
 Config::Config(const char *ConfigFile)
 {
 	std::ifstream fstream(ConfigFile);
@@ -66,6 +72,7 @@ Config::Config(const char *ConfigFile)
 		"403 =",
 		"404 =",
 		"MaxRequestBodySize ="
+		//Add hosts
 	};
 	std::string *config_locs[]
 	{

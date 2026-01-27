@@ -1,4 +1,5 @@
 #include "Socket.hpp"
+#include "functions.hpp"
 #include <string>
 #include <vector>
 #include <sys/select.h>
@@ -23,10 +24,9 @@ static void receive_data(int clientfd, RequestParser &parser)
 	}
 }
 
-void handle_client(fd_set *socket_fds, std::vector<Socket> &sockets)
+void handle_client(const Config &config, fd_set *socket_fds, std::vector<Socket> &sockets)
 {
 	std::vector<int>	client_fds;
-	RequestParser		parser;
 	
 	for (size_t i = 0 ; i < sockets.size() ; i ++)
 	{
@@ -38,11 +38,12 @@ void handle_client(fd_set *socket_fds, std::vector<Socket> &sockets)
 	}
 	for (int &fd : client_fds)
 	{
+		RequestParser		parser;
 		receive_data(fd, parser);
-		switch (parser.m_request.getMethod())
+		switch (parser.getMethod())
 		{
 			case HttpMethod::GET:
-				/* code */
+				Http_Get(fd, config.Hosts[0], parser);
 				break;
 			case (HttpMethod::POST):
 				break ;
