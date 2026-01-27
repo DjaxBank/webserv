@@ -371,9 +371,13 @@ void RequestParser::parseBody()
             
             if (m_need_chunk_size == true)
             {
+                if (pos != std::string::npos && m_parsingTrailers == true)
+                {
+                    m_state = ParserState::COMPLETE;
+                    return;
+                }
                 std::string hex_value = m_buffer.substr(0, pos);
                 
-                // Handle empty hex_value (shouldn't happen if buffer has \r\n)
                 if (hex_value.empty())
                     return setErrorAndReturn("empty chunk size", hex_value);
                 
@@ -395,8 +399,8 @@ void RequestParser::parseBody()
                     m_buffer.erase(0, 1);
                     if (m_buffer.size() < 2 || m_buffer.compare(0, 2, "\r\n") != 0)
                         return setErrorAndReturn("malformed chunked encoding end", m_buffer);
+                    m_parsingTrailers = true;
                     m_buffer.erase(0, 2);
-                    m_state = ParserState::COMPLETE;
                     return;
                 }
                 
@@ -436,10 +440,11 @@ void RequestParser::parseBody()
  * @return: false if ERROR state reached, true otherwise
  * Use: call repeatedly with incoming socket data until parsing completes
  */
+
+ // consider refactoring to if statements that check state and check return on function call
 bool RequestParser::fetch_data(const std::string& data)
 {
     m_buffer += data;
-    
     while (m_state != ParserState::ERROR && m_state != ParserState::COMPLETE)
     {
         switch (m_state)
@@ -465,7 +470,6 @@ bool RequestParser::fetch_data(const std::string& data)
                 return true;
         }
     }
-    
     return m_state != ParserState::ERROR;
 }
 
