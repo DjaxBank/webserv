@@ -2,7 +2,7 @@
 #include <vector>
 #include <string>
 #include <exception>
-#include "UrlRule.hpp"
+#include "Host.hpp"
 
 struct socket_pair
 {
@@ -23,7 +23,8 @@ class Config
 		std::string					Forbidden;
 		std::string					NotFound;
 		std::string					MaxRequestBodySize;
-		std::vector<UrlRule>		Url_rules;
+		std::vector<Host>			Hosts;
+
 		Config(const char *ConfigFile);
 		~Config();
 		class UnknownOptionException : public std::exception
