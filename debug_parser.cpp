@@ -17,13 +17,18 @@ int main() {
                             "Accept-Encoding: gzip, deflate\r\n"
                             "Connection: keep-alive\r\n"
                             "Upgrade-Insecure-Requests: 1\r\n"
-                            "Transfer-Encoding: chunked\r\n"
+                            "Transfer-Encoding: chunked, content-length                             \r\n"
                             "\r\n\r\n"
                             "1F\r\n"
                             "Hey this should be about31chars\r\n"
-                            "0\r\n";
+                            "0\r\n"
+                            "asdsadssafsaffijfsahlkfsahhsa\r\n";
     
     // Simulate socket recv() by feeding data in chunks
+
+    // lookup header multiple values
+
+    // figure our why chunk size changes breaks it
     size_t chunk_size = 50;
     size_t offset = 0;
     

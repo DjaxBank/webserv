@@ -34,7 +34,7 @@ class RequestParser
 		bool m_need_chunk_size = true;
 		size_t m_chunkBytesRemaining = 0;
 		size_t m_chunkBytesReceived = 0;
-		// bool   m_parsingTrailers = false;
+		bool   m_parsingTrailers = false;
 
 	public:
 		RequestParser();
