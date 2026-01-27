@@ -289,10 +289,6 @@ bool RequestParser::parseBodyMetadata()
         if (encoding == "chunked")
         {
             m_request.setChunked(true);
-            size_t pos = m_buffer.find("\r\n\r\n");
-            if (pos == std::string::npos)
-                return fail("malformed body seperation line", "");
-            m_buffer.erase(0, pos + 4);
             m_state = ParserState::BODY;
             return true;
         }
@@ -305,50 +301,51 @@ bool RequestParser::parseBodyMetadata()
         if (!validateContentLength(c_length, content_len))
             return fail("malformed content-length", "");
         m_request.setContentLen(content_len);
-        size_t pos = m_buffer.find("\r\n\r\n");
-            if (pos == std::string::npos)
-                return fail("malformed body seperation line", "");
-        m_buffer.erase(0, pos + 4);
         m_state = ParserState::BODY;
         return true;
     }
     return true;
 }
 
+// REFACTORED, DOUBLE CHECK
 /* Parses header of HTTP request and adds them to a request's key:value map */
 void RequestParser::parseHeaders()
 {
-    size_t total_header_size = 0;
-    while (true)
+    size_t header_end = m_buffer.find("\r\n\r\n");
+    if (header_end == std::string::npos)
+        return;
+    if (header_end > MAX_TOTAL_HEADER_SIZE)
+        return setErrorAndReturn("total header size too large", "");
+    
+
+    std::string headers_section = m_buffer.substr(0, header_end);
+    m_buffer.erase(0, header_end + 4);
+
+    size_t pos = 0;
+    while (pos < headers_section.length())
     {
-        size_t pos = m_buffer.find("\r\n\r\n");
-        if (pos == 0)
+        size_t line_end = headers_section.find("\r\n", pos);
+        if (line_end == std::string::npos)
+            line_end = headers_section.length();
+        
+        std::string header_line = headers_section.substr(pos, line_end - pos);
+
+        if (header_line.length() > MAX_HEADER_SIZE)
+            return setErrorAndReturn("header line too long", header_line);
+        
+        if (!header_line.empty())
         {
-            break;
-        }
-        pos = m_buffer.find("\r\n");
-        if (pos == std::string::npos)
-            return;
-        if (pos > MAX_HEADER_SIZE)
-            return setErrorAndReturn("header line too long", "");
-        total_header_size += pos + 2;
-        if (total_header_size > MAX_TOTAL_HEADER_SIZE)
-            return setErrorAndReturn("total header file size too large", "");
-        std::string header_token = m_buffer.substr(0, pos);
-        m_buffer.erase(0, pos + 2);
-        if (header_token.empty()) {
-            break;
+            std::string key = extractKey(header_line);
+            if (key.empty())
+                return setErrorAndReturn("invalid header key", header_line);
+            
+            std::string value = extractValue(header_line);
+            m_request.addHeader(key, value);
         }
         
-        std::string key = extractKey(header_token);
-        if (key.empty())
-            return setErrorAndReturn("invalid header key", header_token);
-
-        std::string value = extractValue(header_token);
-
-        m_request.addHeader(key, value);
+        pos = line_end + 2; 
     }
-
+    
     if (!validateRequiredHeaders())
         return;
     if (!parseBodyMetadata())
