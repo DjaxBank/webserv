@@ -32,10 +32,9 @@ class RequestParser
 		static const size_t MAX_CHUNK_SIZE;
 
 		bool m_need_chunk_size = true;
-		bool   m_chunkExpectSize = true;
 		size_t m_chunkBytesRemaining = 0;
 		size_t m_chunkBytesReceived = 0;
-		bool   m_parsingTrailers = false;
+		// bool   m_parsingTrailers = false;
 
 	public:
 		RequestParser();
@@ -45,7 +44,12 @@ class RequestParser
 		ParserState getState() const;
 		bool fetch_data(const std::string& data);
 		void debugState(const char* label = "DEBUG") const;
-		std::string getHeader(const std::string& key) const;
+	
+		const HttpMethod& getMethod() const;
+		const std::string& getTarget() const;
+		const HttpVersion& getVersion() const;
+		const std::string getHeader(const std::string& key) const;
+		const std::vector<uint8_t>& getBody() const;
 	private:
 		void parseRequestLine();
 		void parseHeaders();
@@ -59,8 +63,6 @@ class RequestParser
 		std::string extractKey(const std::string& header_token);
         std::string extractValue(const std::string& header_token);
         std::string trimValue(const std::string& value);
-		bool readLine(std::string& outLine);
-		bool isHexToken(const std::string& s);
 };
 
 #endif

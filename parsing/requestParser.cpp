@@ -228,7 +228,7 @@ std::string RequestParser::trimValue(const std::string& value)
 
 /* returns a header as a string based on a key value
     @param key will return the value based on they or "" if key not found*/
-std::string RequestParser::getHeader(const std::string& key) const
+const std::string RequestParser::getHeader(const std::string& key) const
 {
     const auto& headers = m_request.getHeaders();
     auto iterator = headers.find(key);
@@ -361,7 +361,6 @@ void RequestParser::parseHeaders()
 
 void RequestParser::parseBody()
 {
-    
     while(true)
     {
         if (m_request.getChunked() == true)
@@ -369,17 +368,19 @@ void RequestParser::parseBody()
             size_t pos = m_buffer.find("\r\n");
             if (pos == std::string::npos)
                 return;
-            std::cout << "BUFFER VALUE: " << m_buffer << "POS: " << pos << std::endl;
+            
             if (m_need_chunk_size == true)
             {
                 std::string hex_value = m_buffer.substr(0, pos);
-                std::cout << "HEX VALUE: " << hex_value << std::endl;
+                
+                // Handle empty hex_value (shouldn't happen if buffer has \r\n)
+                if (hex_value.empty())
+                    return setErrorAndReturn("empty chunk size", hex_value);
+                
                 size_t chunk_size = 0;
                 try
                 {
-                    // implement trimming chunj extensions later
                     chunk_size = std::stoul(hex_value, 0, 16);
-                    std::cout << "chunk_size value: " << chunk_size << std::endl;
                 }
                 catch (std::invalid_argument)
                 {
@@ -387,49 +388,47 @@ void RequestParser::parseBody()
                 }
                 catch (std::out_of_range)
                 {
-                    return setErrorAndReturn("chunk size of out of range", "");
+                    return setErrorAndReturn("chunk size out of range", "");
                 }
                 if (chunk_size == 0)
                 {
-                    std::cout << "enterd here\n";
-                    m_buffer.erase(0, pos + 2); // consume "0" line + CRLF
-                    // TODO: parse trailers; for now require CRLFCRLF
-                    size_t tpos = m_buffer.find("\r\n\r\n");
-                    if (tpos != std::string::npos)
-                        return; // wait for trailers to complete
-                    m_buffer.erase(0, tpos + 4);
-                    std::cout << "m_bufferrrrrrrrrrrrrrrrrrrrrrrrr: " << m_buffer << std::endl;
+                    m_buffer.erase(0, 1);
+                    if (m_buffer.size() < 2 || m_buffer.compare(0, 2, "\r\n") != 0)
+                        return setErrorAndReturn("malformed chunked encoding end", m_buffer);
+                    m_buffer.erase(0, 2);
                     m_state = ParserState::COMPLETE;
                     return;
                 }
+                
                 if (chunk_size > MAX_CHUNK_SIZE)
                     return setErrorAndReturn("chunk size too large", "");
-                m_chunkBytesRemaining = chunk_size;
-                if (m_chunkBytesReceived + m_chunkBytesRemaining > MAX_BODY_SIZE)
+                if (m_chunkBytesReceived + chunk_size > MAX_BODY_SIZE)
                     return setErrorAndReturn("body too large", "");
+                
+                m_chunkBytesRemaining = chunk_size;
                 m_buffer.erase(0, pos + 2);
                 m_need_chunk_size = false;
             }
 
             if (m_buffer.size() < m_chunkBytesRemaining + 2)
                 return;
+            
             m_request.appendBody(m_buffer.substr(0, m_chunkBytesRemaining));
             m_chunkBytesReceived += m_chunkBytesRemaining;
-            std::string body(m_request.getBody().begin(), m_request.getBody().end());
-            std::cout << "Body: " << body << std::endl;
             m_buffer.erase(0, m_chunkBytesRemaining);
+            
             if (m_buffer.compare(0, 2, "\r\n") != 0)
-                return setErrorAndReturn("chunk size and CRLF mismatch", m_buffer);
+                return setErrorAndReturn("chunk data and CRLF mismatch", m_buffer);
+            
             m_buffer.erase(0, 2);
             m_need_chunk_size = true;
         }
         else
         {
-            std::cout << "Went in content-length\n";
+            // TODO: implement content-length body parsing
             return;
         }
     }
-    return;
 }
 
 /* Feeds data into the parser and processes based on current state
@@ -474,6 +473,26 @@ bool RequestParser::fetch_data(const std::string& data)
 ParserState RequestParser::getState() const
 {
     return m_state;
+}
+
+const HttpMethod& RequestParser::getMethod() const
+{
+    return m_request.getMethod();
+}
+
+const std::string& RequestParser::getTarget() const
+{
+    return m_request.getTarget();
+}
+
+const HttpVersion& RequestParser::getVersion() const
+{
+    return m_request.getVersion();
+}
+
+const std::vector<uint8_t>& RequestParser::getBody() const
+{
+    return m_request.getBody();
 }
 
 /* Prints detailed parser state and request contents for debugging
