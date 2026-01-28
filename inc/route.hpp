@@ -3,10 +3,10 @@
 #include <vector>
 #include "Request.hpp"
 
-struct Host
+struct Route_rule
 {
 		std::vector<HttpMethod>			http_methods;
-		std::string						servername;
+		std::string						route;
 		std::string						redirection;
 		std::string						root;
 		std::string						default_dir_file;

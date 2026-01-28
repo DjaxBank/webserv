@@ -57,38 +57,53 @@ void Config::ImportIntPortPairs(std::string value)
 	}
 }
 
-void Config::Importhost(std::string raw)
+void Config::ImportRoute(std::string raw, std::ifstream &fstream, size_t linec)
 {
-	Host new_host;
-
+	Route_rule new_route;
+	std::string line;
+	bool first_content = false;
+	while(!line.find('}'))
+	{
+		std::getline(fstream, line);
+		if (!line.empty())
+		{
+			if (first_content == false && !line.find('{'))
+				throw std::runtime_error("route at line "+  std::to_string(linec) + " not properly enclosed with { and }");
+		}
+	}
+	routes.push_back(new_route);
 }
 
 Config::Config(const char *ConfigFile)
 {
-	std::ifstream fstream(ConfigFile);
-	std::string line;
-	const std::string config_options[] {
+	std::ifstream		fstream(ConfigFile);
+	size_t				linec = 0;
+	const std::string	config_options[] {
 		"listen =",
+		"route",
 		"403 =",
 		"404 =",
 		"MaxRequestBodySize ="
-		//Add hosts
 	};
-	std::string *config_locs[]
-	{
+	std::string			*config_locs[] {
 		nullptr,
+		nullptr, 
 		&this->Forbidden,
 		&this->NotFound,
 		&this->MaxRequestBodySize
 	};
 	while (fstream.is_open() && !fstream.eof())
 	{
+		std::string line;
+		bool 		valid_option = false;
 		std::getline(fstream, line);
-		for (size_t i = 0; i < 4; i++)
+		linec++;
+		for (size_t i = 0; i < 5 && !line.empty(); i++)
 		{
 			size_t pos = line.find(config_options[i]);
 			if (pos != std::string::npos)
 			{
+				valid_option = true;
 				std::string value = line.substr(pos + config_options[i].length());
 				size_t start = value.find_first_not_of(' ');
 				size_t end = value.find_last_not_of(' ');
@@ -96,15 +111,16 @@ Config::Config(const char *ConfigFile)
 				value.erase(0, start);
 				if (i == 0)
 					ImportIntPortPairs(value);
+				else if (i == 1)
+					ImportRoute(value, fstream, linec);
 				else
 					*config_locs[i] = value;
-				line.clear();
 				break ;
 			}
 		}
-		if (!line.empty())
+		if (!valid_option && !line.empty())
 		{
-			throw Config::UnknownOptionException();
+			throw std::runtime_error("unknown directive at line " + std::to_string(linec) + ": " + line);
 		}
 	}
 	CheckAllFull();
