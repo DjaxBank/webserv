@@ -43,7 +43,7 @@ void handle_client(const Config &config, fd_set *socket_fds, std::vector<Socket>
 		switch (parser.getMethod())
 		{
 			case HttpMethod::GET:
-				Http_Get(fd, config.Hosts[0], parser);
+				Http_Get(fd, config.routes[0], parser);
 				break;
 			case (HttpMethod::POST):
 				break ;

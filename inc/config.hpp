@@ -2,7 +2,7 @@
 #include <vector>
 #include <string>
 #include <exception>
-#include "Host.hpp"
+#include "route.hpp"
 
 struct socket_pair
 {
@@ -17,22 +17,17 @@ class Config
 		Config(const Config &other);
 		Config &operator=(const Config &other);
 		void	ImportIntPortPairs(std::string value);
-		void	Importhost(std::string raw);
+		void	ImportRoute(std::string raw, std::ifstream &fstream, size_t linec);
 		void	CheckAllFull();		
 	public:	
 		std::vector<socket_pair>	socket_pairs;
 		std::string					Forbidden;
 		std::string					NotFound;
 		std::string					MaxRequestBodySize;
-		std::vector<Host>			Hosts;
+		std::vector<Route_rule>		routes;
 
 		Config(const char *ConfigFile);
 		~Config();
-		class UnknownOptionException : public std::exception
-		{
-			public:
-				const char *what() const throw(){return "unknown directive at line ";};
-		};
 		class MissingOptionException : public std::exception
 		{
 			public:
