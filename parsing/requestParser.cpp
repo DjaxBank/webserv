@@ -75,6 +75,20 @@ const std::vector<uint8_t>& RequestParser::getBody() const
     return m_request.getBody();
 }
 
+/* returns a header as a string based on a key value
+    @param key will return the value based on they or "" if key not found*/
+const std::string RequestParser::getHeader(const std::string& key) const
+{
+    const auto& headers = m_request.getHeaders();
+    auto iterator = headers.find(key);
+    if (iterator != headers.end())
+    {
+        return iterator->second;
+    }
+    else
+        return "";
+}
+
 // ============================================================================
 // CONVERSION UTILITIES
 // ============================================================================
@@ -260,23 +274,31 @@ bool RequestParser::validateHTTPVersion(const std::string& version)
     @param out_length a size_t value to store the content length in after parsing */
 bool RequestParser::validateContentLength(const std::string& value, size_t& out_length)
 {
-    size_t one_hundread_MB = 104857600;
-
     if (value.empty())
         return false;
+
     for (unsigned char c : value)
     {
         if (!std::isdigit(c))
             return false;
     }
 
-    std::stringstream sstream(value);
-    if (!(sstream >> out_length))
+    try
+    {
+        out_length = std::stoul(value, nullptr, 10);
+    }
+    catch (const std::invalid_argument&)
+    {
         return false;
-    if (!sstream.eof())
+    }
+    catch (const std::out_of_range&)
+    {
         return false;
-    if (out_length > one_hundread_MB)
+    }
+    
+    if (out_length > MAX_BODY_SIZE)
         return false;
+    
     return true;
 }
 
@@ -285,55 +307,6 @@ bool RequestParser::validateRequiredHeaders()
 {
     if (m_request.getVersion() == HttpVersion::HTTP_1_1 && getHeader("Host").empty())
         return fail("missing Host header", "");
-    return true;
-}
-
-/* returns a header as a string based on a key value
-    @param key will return the value based on they or "" if key not found*/
-const std::string RequestParser::getHeader(const std::string& key) const
-{
-    const auto& headers = m_request.getHeaders();
-    auto iterator = headers.find(key);
-    if (iterator != headers.end())
-    {
-        return iterator->second;
-    }
-    else
-        return "";
-}
-
-/* Parses metadata relating to body information, determines if body is present
-    and its related headers are valid */
-bool RequestParser::parseBodyMetadata()
-{
-    const std::string t_encoding = getHeader("Transfer-Encoding");
-    const std::string c_length = getHeader("Content-Length");
-
-    if (!t_encoding.empty() && !c_length.empty())
-        return fail("transfer encoding and content length present in header", "");
-
-    if (!t_encoding.empty())
-    {
-        std::string encoding = trimValue(t_encoding);
-
-        if (encoding == "chunked")
-        {
-            m_request.setChunked(true);
-            m_state = ParserState::BODY;
-            return true;
-        }
-        return fail("unsupported transfer-encoding method", "");
-    }
-
-    if (!c_length.empty())
-    {
-        size_t content_len;
-        if (!validateContentLength(c_length, content_len))
-            return fail("malformed content-length", "");
-        m_request.setContentLen(content_len);
-        m_state = ParserState::BODY;
-        return true;
-    }
     return true;
 }
 
@@ -441,49 +414,135 @@ void RequestParser::parseRequestLine()
 // ============================================================================
 
 // Needs a refactor into helper functions as well probably.
-/* Parses header of HTTP request and adds them to a request's key:value map */
-void RequestParser::parseHeaders()
-{   
+/* Extracts the complete headers section from buffer
+ * @param out_headers_section: extracted headers without trailing \r\n\r\n
+ * @return: true if complete section found, false if incomplete
+ */
+bool RequestParser::extractHeadersSection(std::string& out_headers_section)
+{
     size_t header_end = m_buffer.find("\r\n\r\n");
     if (header_end == std::string::npos)
-        return;
-    if (header_end > MAX_TOTAL_HEADER_SIZE)
-        return setErrorAndReturn("total header size too large", "");
+        return false;
     
-
-    std::string headers_section = m_buffer.substr(0, header_end);
+    if (header_end > MAX_TOTAL_HEADER_SIZE)
+    {
+        setErrorAndReturn("total header size too large", "");
+        return false;
+    }
+    
+    out_headers_section = m_buffer.substr(0, header_end);
     m_buffer.erase(0, header_end + EMPTY_LINE_LENGTH);
+    return true;
+}
 
+/* Parses a single header line and adds to request
+ * @param header_line: the line to parse (format: "Key: Value")
+ * @return: true if valid and added, false on error
+ */
+bool RequestParser::parseHeaderLine(const std::string& header_line)
+{
+    if (header_line.empty())
+        return true;
+    
+    if (header_line.length() > MAX_HEADER_SIZE)
+    {
+        setErrorAndReturn("header line too long", header_line);
+        return false;
+    }
+    
+    std::string key = extractKey(header_line);
+    if (key.empty())
+    {
+        setErrorAndReturn("invalid header key", header_line);
+        return false;
+    }
+    
+    std::string value = extractValue(header_line);
+    m_request.addHeader(key, value);
+    return true;
+}
+
+/* Processes all header lines in the headers section
+ * @param headers_section: complete headers text
+ * @return: true if all headers parsed successfully
+ */
+bool RequestParser::processHeaderLines(const std::string& headers_section)
+{
     size_t pos = 0;
     while (pos < headers_section.length())
     {
         size_t line_end = headers_section.find("\r\n", pos);
         if (line_end == std::string::npos)
-            line_end = headers_section.length();
+        {
+            std::string header_line = headers_section.substr(pos);
+            if (!parseHeaderLine(header_line))
+                return false;
+            break;
+        }
         
         std::string header_line = headers_section.substr(pos, line_end - pos);
-
-        if (header_line.length() > MAX_HEADER_SIZE)
-            return setErrorAndReturn("header line too long", header_line);
         
-        if (!header_line.empty())
-        {
-            std::string key = extractKey(header_line);
-            if (key.empty())
-                return setErrorAndReturn("invalid header key", header_line);
-            
-            std::string value = extractValue(header_line);
-            m_request.addHeader(key, value);
-        }
+        if (!parseHeaderLine(header_line))
+            return false;
+        
         pos = line_end + CRLF_LENGTH;
     }
+    return true;
+}
+
+/* Parses metadata relating to body information, determines if body is present
+    and its related headers are valid */
+bool RequestParser::parseBodyMetadata()
+{
+    const std::string t_encoding = getHeader("Transfer-Encoding");
+    const std::string c_length = getHeader("Content-Length");
+
+    if (!t_encoding.empty() && !c_length.empty())
+        return fail("transfer encoding and content length present in header", "");
+
+    if (!t_encoding.empty())
+    {
+        std::string encoding = trimValue(t_encoding);
+
+        if (encoding == "chunked")
+        {
+            m_request.setChunked(true);
+            m_state = ParserState::BODY;
+            return true;
+        }
+        return fail("unsupported transfer-encoding method", "");
+    }
+
+    if (!c_length.empty())
+    {
+        size_t content_len;
+        if (!validateContentLength(c_length, content_len))
+            return fail("malformed content-length", "");
+        m_request.setContentLen(content_len);
+        m_state = ParserState::BODY;
+        return true;
+    }
+    
+    m_state = ParserState::COMPLETE;
+    return true;
+}
+
+/* Parses header of HTTP request and adds them to a request's key:value map */
+void RequestParser::parseHeaders()
+{   
+    std::string headers_section;
+    if (!extractHeadersSection(headers_section))
+        return;
+    
+    if (!processHeaderLines(headers_section))
+        return;
     
     if (!validateRequiredHeaders())
         return;
+    
     if (!parseBodyMetadata())
         return;
-    if (m_state != ParserState::BODY)
-        m_state = ParserState::COMPLETE;
+    
 }
 
 // ============================================================================
@@ -493,9 +552,23 @@ void RequestParser::parseHeaders()
 /* Parses and validates Chunk size from the hex value that preceeds the body chunk */
 bool RequestParser::parseChunkSize(const std::string& hex_value, size_t& out_size)
 {
+    if (hex_value.empty())
+    {
+        setErrorAndReturn("empty chunk size", "");
+        return false;
+    }
+    for (unsigned char c : hex_value)
+    {
+        if (!std::isxdigit(c))
+        {
+            setErrorAndReturn("invalid hex character in chunk size", hex_value);
+            return false;
+        }
+    }
+    
     try
     {
-        out_size = std::stoul(hex_value, 0, 16);
+        out_size = std::stoul(hex_value, nullptr, 16);
     }
     catch (const std::invalid_argument&)
     {
@@ -584,6 +657,11 @@ void RequestParser::parseChunkedBody()
 void RequestParser::parseContentLengthBody()
 {
     size_t content_length = m_request.getContentLen();
+    if (content_length == 0)
+    {
+        m_state = ParserState::COMPLETE;
+        return;
+    }
     
     if (m_buffer.size() < content_length)
         return;
@@ -604,14 +682,9 @@ void RequestParser::parseBody()
     if (m_request.getChunked())
     {
         parseChunkedBody();
-    }
-    else if (m_request.getContentLen() > 0)
-    {
+    } 
+    else {
         parseContentLengthBody();
-    }
-    else
-    {
-        m_state = ParserState::COMPLETE;
     }
 }
 
