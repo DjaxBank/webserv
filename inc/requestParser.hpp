@@ -54,15 +54,23 @@ class RequestParser
 		void parseRequestLine();
 		void parseHeaders();
 		void parseBody();
+		void parseContentLengthBody();
+		void parseChunkedBody();
 		void setErrorAndReturn(const char* reason = "", const std::string& line = "");
+		bool extractLineToken(std::string& source, std::string& out_token);
+		bool extractMethod(std::string& request_line);
+		bool extractTarget(std::string& request_line);
+		bool extractVersion(const std::string& version_token);
 		bool fail(const char* reason = "", const std::string& line = "");
 		bool validateRequiredHeaders();
 		bool parseBodyMetadata();
 		bool validateHTTPVersion(const std::string& version);
 		bool validateContentLength(const std::string& value, size_t& out_length);
+		bool parseChunkSize(const std::string& hex_value, size_t& out_size);
+		bool extractChunkData(const std::string& chunked_section, size_t& pos, size_t chunk_size);
 		std::string extractKey(const std::string& header_token);
         std::string extractValue(const std::string& header_token);
-        std::string trimValue(const std::string& value);
+        std::string trimValue(const std::string& value);		
 };
 
 #endif

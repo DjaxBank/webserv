@@ -5,8 +5,8 @@ DEBUG_SRC = parsing/Request.cpp parsing/requestParser.cpp debug_parser.cpp
 OBJS = $(SRC:.cpp=.o)
 DEBUG_OBJS = $(DEBUG_SRC:.cpp=.o)
 CC = c++
-FLAGS = -Wall -Wextra -g -fno-limit-debug-info
-DEBUG_FLAGS = -Wall -Wextra -g -O0 -DDEBUG -fno-limit-debug-info
+FLAGS = -Wall -Wextra -g 
+DEBUG_FLAGS = -Wall -Wextra -g -O0 -DDEBUG
 CXXFLAGS += -D_GLIBCXX_DEBUG -g -O0
 
 all: $(NAME)
