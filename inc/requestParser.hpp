@@ -61,8 +61,11 @@ class RequestParser
 		bool extractMethod(std::string& request_line);
 		bool extractTarget(std::string& request_line);
 		bool extractVersion(const std::string& version_token);
-		bool fail(const char* reason = "", const std::string& line = "");
+		bool extractHeadersSection(std::string& out_headers_section);
+        bool parseHeaderLine(const std::string& header_line);
+        bool processHeaderLines(const std::string& headers_section);
 		bool validateRequiredHeaders();
+		bool fail(const char* reason = "", const std::string& line = "");
 		bool parseBodyMetadata();
 		bool validateHTTPVersion(const std::string& version);
 		bool validateContentLength(const std::string& value, size_t& out_length);
