@@ -4,6 +4,10 @@
 #include "../inc/Request.hpp"
 #include <cctype>
 
+// ============================================================================
+// CONSTANTS & DEFINITIONS
+// ============================================================================
+
 // Important to mitigate DOS attacks
 // Max size of a single header line must be less than 32kb
 const size_t RequestParser::MAX_HEADER_SIZE = 32768;
@@ -14,6 +18,17 @@ const size_t RequestParser::MAX_TOTAL_HEADER_SIZE = 262144;
 const size_t RequestParser::MAX_BODY_SIZE = 100 * 1024 * 1024;
 // Max size of chunks must be 8MB or less
 const size_t RequestParser::MAX_CHUNK_SIZE = 8 * 1024 * 1024;
+
+// Other constant definitions
+
+// length of "\r\n" aka for HTTP: CRLF - (Carriage Return, Line Feed)
+const size_t CRLF_LENGTH = 2;
+// length of "\r\n\r\n" aka for HTTP: Empty Line or Blank Line
+const size_t EMPTY_LINE_LENGTH = 4;
+
+// ============================================================================
+// CONSTRUCTORS & DESTRUCTOR
+// ============================================================================
 
 RequestParser::RequestParser() : m_buffer(), m_state(ParserState::REQUEST_LINE), m_request() {}
 
@@ -30,6 +45,39 @@ RequestParser& RequestParser::operator=(const RequestParser& other) {
 }
 
 RequestParser::~RequestParser() {}
+
+// ============================================================================
+// GETTERS
+// ============================================================================
+
+ParserState RequestParser::getState() const
+{
+    return m_state;
+}
+
+const HttpMethod& RequestParser::getMethod() const
+{
+    return m_request.getMethod();
+}
+
+const std::string& RequestParser::getTarget() const
+{
+    return m_request.getTarget();
+}
+
+const HttpVersion& RequestParser::getVersion() const
+{
+    return m_request.getVersion();
+}
+
+const std::vector<uint8_t>& RequestParser::getBody() const
+{
+    return m_request.getBody();
+}
+
+// ============================================================================
+// CONVERSION UTILITIES
+// ============================================================================
 
 /* Converts HttpMethod enum to string  */
 std::string method_tostring(HttpMethod method)
@@ -52,6 +100,7 @@ HttpMethod string_tomethod(const std::string& str)
     if (str == "DELETE") return HttpMethod::DELETE;
     return HttpMethod::NONE;
 }
+
 /* Converts string to HttpVersion enum; returns NONE if invalid */
 HttpVersion string_toversion(const std::string &version)
 {
@@ -59,6 +108,7 @@ HttpVersion string_toversion(const std::string &version)
     if (version == "HTTP/1.1") return HttpVersion::HTTP_1_1;
     return HttpVersion::NONE;
 }
+
 /* Converts HttpVersion enum to string; returns "NONE" if invalid*/
 std::string version_tostring(const HttpVersion &version)
 {
@@ -96,11 +146,7 @@ void handle_method(HttpMethod method)
         case HttpMethod::POST:
             // implement
             break; 
-            // implement
-            break; 
         case HttpMethod::DELETE:
-            // implement
-            break; 
             // implement
             break; 
         case HttpMethod::NONE:
@@ -108,6 +154,10 @@ void handle_method(HttpMethod method)
            break;
     }
 }
+
+// ============================================================================
+// ERROR HANDLING
+// ============================================================================
 
 /* Sets parser state to ERROR and logs debug info
  * @param reason: optional error description
@@ -130,60 +180,43 @@ bool RequestParser::fail(const char* reason, const std::string& line)
     return false;
 }
 
-/* Validates HTTP version string against supported versions
- * Currently accepts: HTTP/1.0, HTTP/1.1
- */
-bool RequestParser::validateHTTPVersion(const std::string& version)
+// ============================================================================
+// STRING UTILITIES
+// ============================================================================
+
+/* Trims header values of leading/trailing whitespace */
+std::string RequestParser::trimValue(const std::string& value)
 {
-    return version == "HTTP/1.0"
-        || version == "HTTP/1.1";
+    std::string result = value;
+    
+    size_t start = result.find_first_not_of(" \t");
+    if (start != std::string::npos)
+        result = result.substr(start);
+    else
+        return "";
+    
+    size_t end = result.find_last_not_of(" \t");
+    if (end != std::string::npos)
+        result = result.substr(0, end + 1);
+    
+    return result;
 }
 
-// CONSIDER REFACTORING
-/* Parses the HTTP request line: METHOD TARGET VERSION
- * Extracts and validates each component, then transitions state
- * Errors if any component is missing, empty, or invalid
+/* Extracts next complete line (up to \r\n) from source string
+ * Removes the extracted line + CRLF from source
+ * @param source: string to extract from (modified in place)
+ * @param out_token: extracted line without CRLF
+ * @return: true if line found, false if incomplete
  */
-void RequestParser::parseRequestLine()
+bool RequestParser::extractLineToken(std::string& source, std::string& out_token)
 {
-    size_t pos = m_buffer.find("\r\n");
-    if (pos == std::string::npos)
-        return;
-
-    std::string request_line = m_buffer.substr(0, pos);
-    m_buffer.erase(0, pos + 2);
-
-    // extract method
-    pos = request_line.find(' ');
-    if (pos == std::string::npos)
-        return setErrorAndReturn("no space after method", request_line);
-    std::string method_token = request_line.substr(0, pos);
-    HttpMethod method = string_tomethod(method_token);
-    if (method == HttpMethod::NONE)
-        return setErrorAndReturn("invalid method", request_line);
-    m_request.setMethod(method);
-    request_line = request_line.substr(pos + 1);
-
-    // extract target
-    pos = request_line.find(' ');
-    if (pos == std::string::npos)
-        return setErrorAndReturn("no space after target", request_line);
-    std::string target_token = request_line.substr(0, pos);
-    if (target_token.empty())
-        return setErrorAndReturn("empty target", request_line);
-    m_request.setTarget(target_token);
-    request_line = request_line.substr(pos + 1);
-
-    // extract version
-	std::string version_token = request_line;
-    if (version_token.empty() || version_token.find(' ') != std::string::npos)
-        return setErrorAndReturn("version missing or has spaces", version_token);
-    if (!validateHTTPVersion(version_token))
-        return setErrorAndReturn("invalid HTTP version", version_token);
-    m_request.setVersion(string_toversion(version_token));
-
-	// no errors. ready for next state of parsing
-    m_state = ParserState::HEADERS;
+    size_t line_end = source.find("\r\n");
+    if (line_end == std::string::npos)
+        return false;
+    
+    out_token = source.substr(0, line_end);
+    source.erase(0, line_end + CRLF_LENGTH);
+    return true;
 }
 
 /* Extracts header key. Errors return empty string*/
@@ -208,40 +241,21 @@ std::string RequestParser::extractValue(const std::string& header_token)
    std::string value = header_token.substr(pos + 1);
     return trimValue(value);
 }
-/* Trims header values of leading/trailing whitespace */
-std::string RequestParser::trimValue(const std::string& value)
+
+// ============================================================================
+// VALIDATION
+// ============================================================================
+
+/* Validates HTTP version string against supported versions
+ * Currently accepts: HTTP/1.0, HTTP/1.1
+ */
+bool RequestParser::validateHTTPVersion(const std::string& version)
 {
-    std::string result = value;
-    
-    size_t start = result.find_first_not_of(" \t");
-    if (start != std::string::npos)
-        result = result.substr(start);
-    else
-        return "";
-    
-    size_t end = result.find_last_not_of(" \t");
-    if (end != std::string::npos)
-        result = result.substr(0, end + 1);
-    
-    return result;
+    return version == "HTTP/1.0"
+        || version == "HTTP/1.1";
 }
 
-/* returns a header as a string based on a key value
-    @param key will return the value based on they or "" if key not found*/
-const std::string RequestParser::getHeader(const std::string& key) const
-{
-    const auto& headers = m_request.getHeaders();
-    auto iterator = headers.find(key);
-    if (iterator != headers.end())
-    {
-        return iterator->second;
-    }
-    else
-        return "";
-    
-}
-
-/* Helper function to validate content-lenght header
+/* Helper function to validate content-length header
     @param value is the value of the content-length key pair
     @param out_length a size_t value to store the content length in after parsing */
 bool RequestParser::validateContentLength(const std::string& value, size_t& out_length)
@@ -265,6 +279,7 @@ bool RequestParser::validateContentLength(const std::string& value, size_t& out_
         return false;
     return true;
 }
+
 /* Enforces HTTP/1.1 requiring the "Host" header */
 bool RequestParser::validateRequiredHeaders()
 {
@@ -272,7 +287,22 @@ bool RequestParser::validateRequiredHeaders()
         return fail("missing Host header", "");
     return true;
 }
-/* Parses metadata relating to body informaiton, determins if body is present
+
+/* returns a header as a string based on a key value
+    @param key will return the value based on they or "" if key not found*/
+const std::string RequestParser::getHeader(const std::string& key) const
+{
+    const auto& headers = m_request.getHeaders();
+    auto iterator = headers.find(key);
+    if (iterator != headers.end())
+    {
+        return iterator->second;
+    }
+    else
+        return "";
+}
+
+/* Parses metadata relating to body information, determines if body is present
     and its related headers are valid */
 bool RequestParser::parseBodyMetadata()
 {
@@ -307,10 +337,113 @@ bool RequestParser::parseBodyMetadata()
     return true;
 }
 
-// REFACTORED, DOUBLE CHECK
+// ============================================================================
+// REQUEST LINE PARSING
+// ============================================================================
+
+/* Extracts and validates HTTP method from request line
+ * Modifies request_line by removing method and following space
+ * @return: true if valid method found, false otherwise
+ */
+bool RequestParser::extractMethod(std::string& request_line)
+{
+    size_t pos = request_line.find(' ');
+    if (pos == std::string::npos)
+    {
+        setErrorAndReturn("no space after method", request_line);
+        return false;
+    }
+    
+    std::string method_token = request_line.substr(0, pos);
+    HttpMethod method = string_tomethod(method_token);
+    if (method == HttpMethod::NONE)
+    {
+        setErrorAndReturn("invalid method", request_line);
+        return false;
+    }
+    
+    m_request.setMethod(method);
+    request_line = request_line.substr(pos + 1);
+    return true;
+}
+
+/* Extracts and validates target URI from request line
+ * Modifies request_line by removing target and following space
+ * @return: true if valid target found, false otherwise
+ */
+bool RequestParser::extractTarget(std::string& request_line)
+{
+    size_t pos = request_line.find(' ');
+    if (pos == std::string::npos)
+    {
+        setErrorAndReturn("no space after target", request_line);
+        return false;
+    }
+    
+    std::string target_token = request_line.substr(0, pos);
+    if (target_token.empty())
+    {
+        setErrorAndReturn("empty target", request_line);
+        return false;
+    }
+    
+    m_request.setTarget(target_token);
+    request_line = request_line.substr(pos + 1);
+    return true;
+}
+
+/* Extracts and validates HTTP version from request line
+ * @param version_token: the version string (should be last token)
+ * @return: true if valid version, false otherwise
+ */
+bool RequestParser::extractVersion(const std::string& version_token)
+{
+    if (version_token.empty() || version_token.find(' ') != std::string::npos)
+    {
+        setErrorAndReturn("version missing or has spaces", version_token);
+        return false;
+    }
+    
+    if (!validateHTTPVersion(version_token))
+    {
+        setErrorAndReturn("invalid HTTP version", version_token);
+        return false;
+    }
+    
+    m_request.setVersion(string_toversion(version_token));
+    return true;
+}
+
+/* Parses the HTTP request line: METHOD TARGET VERSION
+ * Extracts and validates each component, then transitions state
+ * Errors if any component is missing, empty, or invalid
+ */
+void RequestParser::parseRequestLine()
+{
+    std::string request_line;
+    if (!extractLineToken(m_buffer, request_line))
+        return;
+
+    if (!extractMethod(request_line))
+        return;
+    
+    if (!extractTarget(request_line))
+        return;
+    
+    if (!extractVersion(request_line))
+        return;
+
+    m_state = ParserState::HEADERS;
+}
+
+// ============================================================================
+// HEADER PARSING
+// ============================================================================
+
+// Needs a refactor into helper functions as well probably.
 /* Parses header of HTTP request and adds them to a request's key:value map */
 void RequestParser::parseHeaders()
-{
+{   
     size_t header_end = m_buffer.find("\r\n\r\n");
     if (header_end == std::string::npos)
         return;
@@ -319,7 +452,7 @@ void RequestParser::parseHeaders()
     
 
     std::string headers_section = m_buffer.substr(0, header_end);
-    m_buffer.erase(0, header_end + 4);
+    m_buffer.erase(0, header_end + EMPTY_LINE_LENGTH);
 
     size_t pos = 0;
     while (pos < headers_section.length())
@@ -342,8 +475,7 @@ void RequestParser::parseHeaders()
             std::string value = extractValue(header_line);
             m_request.addHeader(key, value);
         }
-        
-        pos = line_end + 2; 
+        pos = line_end + CRLF_LENGTH;
     }
     
     if (!validateRequiredHeaders())
@@ -354,91 +486,147 @@ void RequestParser::parseHeaders()
         m_state = ParserState::COMPLETE;
 }
 
-// I probably need a function that grabs the next \r\n token
+// ============================================================================
+// BODY PARSING
+// ============================================================================
 
+/* Parses and validates Chunk size from the hex value that preceeds the body chunk */
+bool RequestParser::parseChunkSize(const std::string& hex_value, size_t& out_size)
+{
+    try
+    {
+        out_size = std::stoul(hex_value, 0, 16);
+    }
+    catch (const std::invalid_argument&)
+    {
+        setErrorAndReturn("malformed chunk size", hex_value);
+        return false;
+    }
+    catch (const std::out_of_range&)
+    {
+        setErrorAndReturn("chunk size out of range", "");
+        return false;
+    }
+    
+    if (out_size > MAX_CHUNK_SIZE)
+    {
+        setErrorAndReturn("chunk size too large", "");
+        return false;
+    }
+    
+    return true;
+}
+/* Extracts and validates Chunk Data that proceeds chunk_size information*/
+bool RequestParser::extractChunkData(const std::string& chunked_section, size_t& pos, size_t chunk_size)
+{
+    if (pos + chunk_size + CRLF_LENGTH > chunked_section.length())
+    {
+        setErrorAndReturn("went past chunked_sections length: chunk data incomplete", "");
+        return false;
+    }
+    
+    std::string chunk_data = chunked_section.substr(pos, chunk_size);
+    m_request.appendBody(chunk_data);
+    pos += chunk_size;
+    
+    if (chunked_section.compare(pos, CRLF_LENGTH, "\r\n") != 0)
+    {
+        setErrorAndReturn("chunk missing trailing CRLF", "");
+        return false;
+    }
+    pos += CRLF_LENGTH;
+    
+    if (m_request.getBody().size() > MAX_BODY_SIZE)
+    {
+        setErrorAndReturn("body too large", "");
+        return false;
+    }
+    
+    return true;
+}
+
+/* Validates and parses the body section of HTTP request if Transfer-Encoding method = chunked */
+void RequestParser::parseChunkedBody()
+{
+    size_t last_chunk_pos = m_buffer.find("0\r\n");
+    if (last_chunk_pos == std::string::npos)
+        return;
+    
+    size_t final_crlf = m_buffer.find("\r\n\r\n", last_chunk_pos);
+    if (final_crlf == std::string::npos)
+        return;
+    
+    std::string chunked_section = m_buffer.substr(0, final_crlf + EMPTY_LINE_LENGTH);
+    m_buffer.erase(0, final_crlf + EMPTY_LINE_LENGTH);
+    size_t pos = 0;
+    while (pos < chunked_section.length())
+    {
+        size_t chunk_size_line_end = chunked_section.find("\r\n", pos);
+        if (chunk_size_line_end == std::string::npos)
+            return setErrorAndReturn("malformed chunk: missing CRLF after size", "");
+        
+        std::string hex_value = chunked_section.substr(pos, chunk_size_line_end - pos);
+        size_t chunk_size = 0;
+        
+        if (!parseChunkSize(hex_value, chunk_size))
+            return;
+        if (chunk_size == 0)
+            break;
+        pos = chunk_size_line_end + CRLF_LENGTH;
+        
+        if (!extractChunkData(chunked_section, pos, chunk_size))
+            return;
+    }
+    
+    m_state = ParserState::COMPLETE;
+}
+/* Validates and parses the body section of HTTP request if Transfer-Encoding method = content-length */
+void RequestParser::parseContentLengthBody()
+{
+    size_t content_length = m_request.getContentLen();
+    
+    if (m_buffer.size() < content_length)
+        return;
+    
+    if (content_length > MAX_BODY_SIZE)
+        return setErrorAndReturn("body too large", "");
+    
+    std::string body_data = m_buffer.substr(0, content_length);
+    m_buffer.erase(0, content_length);
+    
+    m_request.appendBody(body_data);
+    m_state = ParserState::COMPLETE;
+}
+
+/* Checks transfer encoding method of http request*/
 void RequestParser::parseBody()
 {
-    while(true)
+    if (m_request.getChunked())
     {
-        if (m_request.getChunked() == true)
-        {
-            size_t pos = m_buffer.find("\r\n");
-            if (pos == std::string::npos)
-                return;
-            
-            if (m_need_chunk_size == true)
-            {
-                if (pos != std::string::npos && m_parsingTrailers == true)
-                {
-                    m_state = ParserState::COMPLETE;
-                    return;
-                }
-                std::string hex_value = m_buffer.substr(0, pos);
-                
-                if (hex_value.empty())
-                    return setErrorAndReturn("empty chunk size", hex_value);
-                
-                size_t chunk_size = 0;
-                try
-                {
-                    chunk_size = std::stoul(hex_value, 0, 16);
-                }
-                catch (std::invalid_argument)
-                {
-                    return setErrorAndReturn("malformed chunk size", hex_value);
-                }
-                catch (std::out_of_range)
-                {
-                    return setErrorAndReturn("chunk size out of range", "");
-                }
-                if (chunk_size == 0)
-                {
-                    m_buffer.erase(0, 1);
-                    if (m_buffer.size() < 2 || m_buffer.compare(0, 2, "\r\n") != 0)
-                        return setErrorAndReturn("malformed chunked encoding end", m_buffer);
-                    m_parsingTrailers = true;
-                    m_buffer.erase(0, 2);
-                    return;
-                }
-                
-                if (chunk_size > MAX_CHUNK_SIZE)
-                    return setErrorAndReturn("chunk size too large", "");
-                if (m_chunkBytesReceived + chunk_size > MAX_BODY_SIZE)
-                    return setErrorAndReturn("body too large", "");
-                
-                m_chunkBytesRemaining = chunk_size;
-                m_buffer.erase(0, pos + 2);
-                m_need_chunk_size = false;
-            }
-
-            if (m_buffer.size() < m_chunkBytesRemaining + 2)
-                return;
-            
-            m_request.appendBody(m_buffer.substr(0, m_chunkBytesRemaining));
-            m_chunkBytesReceived += m_chunkBytesRemaining;
-            m_buffer.erase(0, m_chunkBytesRemaining);
-            
-            if (m_buffer.compare(0, 2, "\r\n") != 0)
-                return setErrorAndReturn("chunk data and CRLF mismatch", m_buffer);
-            
-            m_buffer.erase(0, 2);
-            m_need_chunk_size = true;
-        }
-        else
-        {
-            // TODO: implement content-length body parsing
-            return;
-        }
+        parseChunkedBody();
+    }
+    else if (m_request.getContentLen() > 0)
+    {
+        parseContentLengthBody();
+    }
+    else
+    {
+        m_state = ParserState::COMPLETE;
     }
 }
+
+// ============================================================================
+// PARSING STATE MACHINE
+// ============================================================================
+
+// Consider refactor to simple 3 ifs with states and function calls
+// This is very linear so a state machine in awhile loop is not nessesary
 
 /* Feeds data into the parser and processes based on current state
  * @param data: chunk of HTTP request data
  * @return: false if ERROR state reached, true otherwise
  * Use: call repeatedly with incoming socket data until parsing completes
  */
-
- // consider refactoring to if statements that check state and check return on function call
 bool RequestParser::fetch_data(const std::string& data)
 {
     m_buffer += data;
@@ -470,37 +658,17 @@ bool RequestParser::fetch_data(const std::string& data)
     return m_state != ParserState::ERROR;
 }
 
-/* Returns current parser state */
-ParserState RequestParser::getState() const
-{
-    return m_state;
-}
-
-const HttpMethod& RequestParser::getMethod() const
-{
-    return m_request.getMethod();
-}
-
-const std::string& RequestParser::getTarget() const
-{
-    return m_request.getTarget();
-}
-
-const HttpVersion& RequestParser::getVersion() const
-{
-    return m_request.getVersion();
-}
-
-const std::vector<uint8_t>& RequestParser::getBody() const
-{
-    return m_request.getBody();
-}
+// ============================================================================
+// DEBUG UTILITIES
+// ============================================================================
 
 /* Prints detailed parser state and request contents for debugging
  * @param label: optional label to identify the debug point
  */
 void RequestParser::debugState(const char* label) const
 {
+    const size_t preview_length = 80;
+    
     std::cerr << "\n------------------------------------"
             << "\n[ParserState] " << (label ? label : "")
             << " \nstate=" << state_tostring(m_state) << "\""
@@ -516,8 +684,6 @@ void RequestParser::debugState(const char* label) const
     }
     
     std::cerr << " \nbody_bytes=" << m_request.getBody().size()
-            << " \nbuffer_prefix=\"" << m_buffer.substr(0, 80) << "\""
+            << " \nbuffer_prefix=\"" << m_buffer.substr(0, preview_length) << "\"" 
             << "\n------------------------------------\n";
 }
-
-// Main function removed - use debug_parser.cpp for testing

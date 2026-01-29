@@ -17,12 +17,13 @@ int main() {
                             "Accept-Encoding: gzip, deflate\r\n"
                             "Connection: keep-alive\r\n"
                             "Upgrade-Insecure-Requests: 1\r\n"
-                            "Transfer-Encoding: chunked                            \r\n"
-                            "\r\n\r\n"
+                            "Transfer-Encoding: chunked\r\n"
+                            "\r\n"
                             "1F\r\n"
                             "Hey this should be about31chars\r\n"
                             "0\r\n"
-                            "asdsadssafsaffijfsahlkfsahhsa\r\n";
+                            "Trailer information: we ignore this\r\n"
+                            "\r\n";
     
     // Simulate socket recv() by feeding data in chunks
 
@@ -68,6 +69,7 @@ int main() {
     {   
         std::cerr << "\n[ERROR] Parsing incomplete. State: " 
                   << (parser.getState() == ParserState::BODY ? "BODY" : "OTHER") << "\n";
+        parser.debugState("AFTER_INCOMPLETE");
         return 1;
     }
 }
