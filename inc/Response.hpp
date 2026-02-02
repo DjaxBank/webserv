@@ -12,7 +12,7 @@ class Response
 		std::string		file_location;
 		Response();
 		std::string		get_timestr();
-		void			find_contentype();
+		bool			find_contentype();
 	public:
 		Response(const Route_rule &route, const RequestParser &parser);
 		void	Send(const int fd);
