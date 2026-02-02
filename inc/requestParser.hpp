@@ -13,6 +13,22 @@ enum class ParserState
 	ERROR,
 };
 
+// HTTP parsing constants
+namespace HTTP_CONSTANT {
+	inline constexpr size_t CRLF_LENGTH = 2;
+	inline constexpr char CRLF[] = "\r\n";
+	inline constexpr size_t EMPTY_LINE_LENGTH = 4;
+	inline constexpr char EMPTY_LINE[] = "\r\n\r\n";
+	// Max size of a single header line must be less than 32kb
+	inline constexpr size_t MAX_HEADER_SIZE = 32768;
+	// Max size of headers must be less than 256kb
+	inline constexpr size_t MAX_TOTAL_HEADER_SIZE = 262144;
+	// Max size of body must be 100MB or less
+	inline constexpr size_t MAX_BODY_SIZE = 100 * 1024 * 1024;
+	// Max size of chunks must be 8MB or less
+	inline constexpr size_t MAX_CHUNK_SIZE = 8 * 1024 * 1024;
+}
+
 std::string method_tostring(HttpMethod method);
 HttpMethod string_tomethod(const std::string& str);
 
@@ -26,15 +42,6 @@ class RequestParser
 		std::string m_buffer;
 		ParserState m_state;
 		Request m_request;
-		static const size_t MAX_HEADER_SIZE;
-		static const size_t MAX_TOTAL_HEADER_SIZE;
-		static const size_t MAX_BODY_SIZE;
-		static const size_t MAX_CHUNK_SIZE;
-
-		bool m_need_chunk_size = true;
-		size_t m_chunkBytesRemaining = 0;
-		size_t m_chunkBytesReceived = 0;
-		bool   m_parsingTrailers = false;
 
 	public:
 		RequestParser();
