@@ -7,6 +7,7 @@ class Response
 	private:
 		const int		fd;
 		std::string		status;
+		HttpMethod		method;
 		std::string		content_type;
 		std::string		content_length;
 		std::string		Date;
@@ -16,6 +17,6 @@ class Response
 		bool			find_contentype();
 		void			Send(std::string data);
 	public:
-		Response(const Route_rule &route, const RequestParser &parser, const int fd);
+		Response(const Route_rule &route, const RequestParser &parser, const int fd, HttpMethod method);
 		void	Reply();
 };
