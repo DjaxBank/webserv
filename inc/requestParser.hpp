@@ -42,7 +42,7 @@ class RequestParser
 		RequestParser& operator=(const RequestParser& other);
 		~RequestParser();
 		ParserState getState() const;
-		bool fetch_data(const std::string& data);
+		bool parseClientRequest(const std::string& data);
 		void debugState(const char* label = "DEBUG") const;
 	
 		const HttpMethod& getMethod() const;
@@ -51,6 +51,7 @@ class RequestParser
 		const std::string getHeader(const std::string& key) const;
 		const std::vector<uint8_t>& getBody() const;
 	private:
+		bool fetchData(const std::string& data);
 		void parseRequestLine();
 		void parseHeaders();
 		void parseBody();

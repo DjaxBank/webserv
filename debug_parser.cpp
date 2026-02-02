@@ -17,7 +17,13 @@ int main() {
                             "Accept-Encoding: gzip, deflate\r\n"
                             "Connection: keep-alive\r\n"
                             "Upgrade-Insecure-Requests: 1\r\n"
+                            "Transfer-Encoding: chunked\r\n"
+                            "\r\n"
+                            "5\r\n"
+                            "hello\r\n"
+                            "0\r\n"
                             "\r\n";
+
     
     // Simulate socket recv() by feeding data in chunks
 
@@ -39,7 +45,7 @@ int main() {
         // std::cout << ">> Recv chunk [" << bytes_to_read << " bytes]: " 
         //           << (chunk.size() > 30 ? chunk.substr(0, 30) + "..." : chunk) << "\n";
         
-        if (!parser.fetch_data(chunk))
+        if (!parser.parseClientRequest(chunk))
         {
             std::cerr << "[ERROR] Parse failed at offset " << offset << "\n";
             parser.debugState("AFTER_FAILURE");
