@@ -1,7 +1,19 @@
 NAME = webserv
 DEBUG_NAME = debug_parser
-SRC = parsing/Request.cpp parsing/requestParser.cpp debug_parser.cpp
-DEBUG_SRC = parsing/Request.cpp parsing/requestParser.cpp debug_parser.cpp
+SRC = parsing/Request.cpp \
+      parsing/requestParser.cpp \
+      parsing/requestParserRequestLine.cpp \
+      parsing/requestParserHeaders.cpp \
+      parsing/requestParserBody.cpp \
+      parsing/requestParserUtils.cpp \
+      debug_parser.cpp
+DEBUG_SRC = parsing/Request.cpp \
+            parsing/requestParser.cpp \
+            parsing/requestParserRequestLine.cpp \
+            parsing/requestParserHeaders.cpp \
+            parsing/requestParserBody.cpp \
+            parsing/requestParserUtils.cpp \
+            debug_parser.cpp
 OBJS = $(SRC:.cpp=.o)
 DEBUG_OBJS = $(DEBUG_SRC:.cpp=.o)
 CC = c++

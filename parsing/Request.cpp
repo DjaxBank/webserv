@@ -1,4 +1,20 @@
 #include "../inc/Request.hpp"
+#include <algorithm>
+#include <cctype>
+
+
+/* Helper function to convert string to lowercase for case-insensitive header comparison
+	@param str string you wanna lower, duh 
+	*/
+static std::string toLower(const std::string& str)
+{
+	std::string lower = str;
+	for (size_t i = 0; i < lower.length(); ++i)
+	{
+		lower[i] = std::tolower(static_cast<unsigned char>(lower[i]));
+	}
+	return lower;
+}
 
 Request::Request() : m_method(), m_target(), m_version(), m_headers(), m_body(), m_chunked(), m_content_len()
 {
@@ -90,7 +106,10 @@ void Request::setContentLen(size_t len)
 
 void Request::addHeader(const std::string& key, const std::string& value)
 {
-	m_headers[key] = value;
+	// TODO: handle duplicate headers (some headers like Set-Cookie can appear multiple times)
+	// Current implementation only stores the last value for duplicate keys
+	// so pretty much search the map and see if it exists already before adding a new one.
+	m_headers[toLower(key)] = value;
 }
 
 void Request::appendBody(const std::string& chunk)
