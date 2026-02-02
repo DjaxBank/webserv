@@ -10,12 +10,12 @@ std::string Response::get_timestr()
 {
 	char buff[1024];
 	std::time_t time = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
-	
+
 	std::strftime(buff, sizeof(buff), "%a, %d %b %Y %H:%M:%S GMT", std::gmtime(&time));
 	return buff;
 }
 
-bool	Response::find_contentype()
+bool Response::find_contentype()
 {
 	if (file_location.find_last_of('.') != file_location.npos)
 	{
@@ -25,17 +25,19 @@ bool	Response::find_contentype()
 			{".js", "application/javascript"},
 			{".png", "image/png"},
 			{".jpg", "image/jpeg"},
-			{".txt", "text/plain"}
-		};
+			{".txt", "text/plain"}};
 		auto it = types.find(file_location.substr(file_location.find_last_of('.')));
 		if (it != types.end())
+		{
 			content_type = it->second;
-		return true;
+			return true;
+		}
 	}
 	return false;
 }
 
-Response::Response(const Route_rule &route, const RequestParser &parser) : Date(get_timestr()), file_location(route.root + parser.getTarget())
+Response::Response(const Route_rule &route, const RequestParser &parser, const int fd) 
+	: fd(fd), Date(get_timestr()), file_location(route.root + parser.getTarget())
 {
 	if (access(file_location.c_str(), F_OK) == -1)
 		status = "404 Not Found";
@@ -45,31 +47,34 @@ Response::Response(const Route_rule &route, const RequestParser &parser) : Date(
 		status = "200 OK";
 }
 
-void Response::Send(const int fd)
+void Response::Send(std::string data)
 {
-	std::string Response_header;
+	write(fd, data.c_str(), data.length());
+}
 
-	Response_header = "HTTP/1.1 " + status + "\r\n";
-	write(fd, Response_header.c_str(), Response_header.length());
-	std::cout << Response_header;
-	Response_header = "Date: " + Date + "\r\n";
-	write(fd, Response_header.c_str(), Response_header.length());
-	std::cout << Response_header;
-	if (find_contentype())
-	{
-		Response_header = "Content-Type: " + content_type + "\r\n";
-		write(fd, Response_header.c_str(), Response_header.length());
-		std::cout << Response_header;
-	}
-	Response_header = "\r\n";
-	write(fd, Response_header.c_str(), Response_header.length());
-	std::cout << Response_header;
+void Response::Reply()
+{
+	Send("HTTP/1.1 " + status + "\r\n");
+	Send("Date: " + Date + "\r\n");
+	std::string body;
 	if (status == "200 OK")
 	{
+		if (find_contentype())
+			Send("Content-Type: " + content_type + "\r\n");
+		size_t total_bytes = 0;
 		std::ifstream file(file_location);
-		char buff[1024];
-		file.read(buff, sizeof(buff));
-		while (write(fd, buff, file.gcount()) > 0)
+		while (true)
+		{
+			char buff[1024];
 			file.read(buff, sizeof(buff));
+			size_t bytes_read = file.gcount();
+			if (bytes_read == 0)
+				break;
+			total_bytes += bytes_read;
+			body.append(buff, bytes_read);
+		}
+		Send("content-length: " + std::to_string(total_bytes) + "\r\n");
 	}
+	Send("\r\n");
+	Send(body);
 }
