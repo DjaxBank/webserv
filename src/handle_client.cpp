@@ -12,7 +12,7 @@ static void receive_data(int clientfd, RequestParser &parser)
 	char	buf[1024];
 
 	size_t bytes_read = 1;
-	std::cout << "new request from :" << "???" << "\n\n";
+	std::cout << '\n';
 	while(bytes_read > 0)
 	{
 		bytes_read = recv(clientfd, buf, 1024, 0);
@@ -36,7 +36,7 @@ void handle_client(const Config &config, fd_set *socket_fds, std::vector<Socket>
 			client_fds.push_back(accept(sockets[i].get_socket_fd(), reinterpret_cast <sockaddr *>(&sockets[i].get_addr()), &addr_len));
 		}
 	}
-	for (int &fd : client_fds)
+	for (const int fd : client_fds)
 	{
 		RequestParser		parser;
 		receive_data(fd, parser);
@@ -54,6 +54,6 @@ void handle_client(const Config &config, fd_set *socket_fds, std::vector<Socket>
 				break;
 		}
 	}
-	for (int &fd : client_fds)
+	for (const int fd : client_fds)
 		close(fd);
 }
