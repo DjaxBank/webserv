@@ -36,8 +36,8 @@ bool Response::find_contentype()
 	return false;
 }
 
-Response::Response(const Route_rule &route, const RequestParser &parser, const int fd) 
-	: fd(fd), Date(get_timestr()), file_location(route.root + parser.getTarget())
+Response::Response(const Route_rule &route, const RequestParser &parser, const int fd, HttpMethod method) 
+	: fd(fd), method(method), Date(get_timestr()), file_location(route.root + parser.getTarget())
 {
 	if (access(file_location.c_str(), F_OK) == -1)
 		status = "404 Not Found";
