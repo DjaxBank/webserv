@@ -23,8 +23,10 @@ const size_t RequestParser::MAX_CHUNK_SIZE = 8 * 1024 * 1024;
 
 // length of "\r\n" aka for HTTP: CRLF - (Carriage Return, Line Feed)
 const size_t CRLF_LENGTH = 2;
+const std::string CRLF = "\r\n";
 // length of "\r\n\r\n" aka for HTTP: Empty Line or Blank Line
 const size_t EMPTY_LINE_LENGTH = 4;
+const std::string EMPTY_LINE = "\r\n\r\n";
 
 // ============================================================================
 // CONSTRUCTORS & DESTRUCTOR
@@ -224,7 +226,7 @@ std::string RequestParser::trimValue(const std::string& value)
  */
 bool RequestParser::extractLineToken(std::string& source, std::string& out_token)
 {
-    size_t line_end = source.find("\r\n");
+    size_t line_end = source.find(CRLF);
     if (line_end == std::string::npos)
         return false;
     
@@ -420,7 +422,7 @@ void RequestParser::parseRequestLine()
  */
 bool RequestParser::extractHeadersSection(std::string& out_headers_section)
 {
-    size_t header_end = m_buffer.find("\r\n\r\n");
+    size_t header_end = m_buffer.find(EMPTY_LINE);
     if (header_end == std::string::npos)
         return false;
     
@@ -471,7 +473,7 @@ bool RequestParser::processHeaderLines(const std::string& headers_section)
     size_t pos = 0;
     while (pos < headers_section.length())
     {
-        size_t line_end = headers_section.find("\r\n", pos);
+        size_t line_end = headers_section.find(CRLF, pos);
         if (line_end == std::string::npos)
         {
             std::string header_line = headers_section.substr(pos);
@@ -602,7 +604,7 @@ bool RequestParser::extractChunkData(const std::string& chunked_section, size_t&
     m_request.appendBody(chunk_data);
     pos += chunk_size;
     
-    if (chunked_section.compare(pos, CRLF_LENGTH, "\r\n") != 0)
+    if (chunked_section.compare(pos, CRLF_LENGTH, CRLF) != 0)
     {
         setErrorAndReturn("chunk missing trailing CRLF", "");
         return false;
@@ -621,11 +623,11 @@ bool RequestParser::extractChunkData(const std::string& chunked_section, size_t&
 /* Validates and parses the body section of HTTP request if Transfer-Encoding method = chunked */
 void RequestParser::parseChunkedBody()
 {
-    size_t last_chunk_pos = m_buffer.find("0\r\n");
+    size_t last_chunk_pos = m_buffer.find("0" + CRLF);
     if (last_chunk_pos == std::string::npos)
         return;
     
-    size_t final_crlf = m_buffer.find("\r\n\r\n", last_chunk_pos);
+    size_t final_crlf = m_buffer.find(EMPTY_LINE, last_chunk_pos);
     if (final_crlf == std::string::npos)
         return;
     
@@ -634,7 +636,7 @@ void RequestParser::parseChunkedBody()
     size_t pos = 0;
     while (pos < chunked_section.length())
     {
-        size_t chunk_size_line_end = chunked_section.find("\r\n", pos);
+        size_t chunk_size_line_end = chunked_section.find(CRLF, pos);
         if (chunk_size_line_end == std::string::npos)
             return setErrorAndReturn("malformed chunk: missing CRLF after size", "");
         
@@ -689,46 +691,82 @@ void RequestParser::parseBody()
 }
 
 // ============================================================================
-// PARSING STATE MACHINE
+// DATA ACCUMULATION & VALIDATION
 // ============================================================================
 
-// Consider refactor to simple 3 ifs with states and function calls
-// This is very linear so a state machine in awhile loop is not nessesary
+/* Accumulates incoming data and validates buffer state
+ * @param data: incoming data chunk
+ * @return: false if error or need more data, true if ready to parse
+ */
+bool RequestParser::fetchData(const std::string& data)
+{
+    if (m_state == ParserState::ERROR || m_state == ParserState::COMPLETE)
+        return false;
+    m_buffer += data;
+    if (m_state != ParserState::BODY && m_buffer.size() > MAX_TOTAL_HEADER_SIZE)
+    {
+        setErrorAndReturn("buffer exceeded max header size", "");
+        return false;
+    }
+
+    // ADD TIMEOUT CHECK HERE PROBABLY (do we have a time function?)
+
+    if (m_state == ParserState::REQUEST_LINE)
+    {
+        if (m_buffer.find(CRLF) == std::string::npos)
+            return false;
+    }
+    else if (m_state == ParserState::HEADERS)
+    {
+        if (m_buffer.find(EMPTY_LINE) == std::string::npos)
+            return false;
+    }
+
+
+    return true; 
+}
+
+// ============================================================================
+// PARSING STATE MACHINE
+// ============================================================================
 
 /* Feeds data into the parser and processes based on current state
  * @param data: chunk of HTTP request data
  * @return: false if ERROR state reached, true otherwise
  * Use: call repeatedly with incoming socket data until parsing completes
  */
-bool RequestParser::fetch_data(const std::string& data)
+bool RequestParser::parseClientRequest(const std::string& data)
 {
-    m_buffer += data;
-    while (m_state != ParserState::ERROR && m_state != ParserState::COMPLETE)
+    if (!fetchData(data))
     {
-        switch (m_state)
-        {
-            case ParserState::REQUEST_LINE:
-                parseRequestLine();
-                if (m_state == ParserState::REQUEST_LINE)
-                    return true;
-                break;
-            case ParserState::HEADERS:
-                parseHeaders();
-                if (m_state == ParserState::HEADERS)
-                    return true;
-                break;
-            case ParserState::BODY:
-                parseBody();
-                if (m_state == ParserState::BODY)
-                    return true;
-                break;
-            case ParserState::ERROR:
-                return false;
-            case ParserState::COMPLETE:
-                return true;
-        }
+        if (m_state == ParserState::ERROR)
+            return false;
+        else
+            return true;
     }
-    return m_state != ParserState::ERROR;
+
+    if (m_state == ParserState::REQUEST_LINE)
+    {
+        parseRequestLine();
+        if (m_state == ParserState::ERROR)
+            return false;
+    }
+
+    if (m_state == ParserState::HEADERS)
+    {
+        parseHeaders();
+        if (m_state == ParserState::ERROR)
+            return false;
+    }
+
+    if (m_state == ParserState::BODY)
+    {
+        parseBody();
+        if (m_state == ParserState::ERROR)
+            return false;
+    }
+
+    return true;
 }
 
 // ============================================================================
