@@ -7,9 +7,10 @@
 #include <iostream>
 #include <unistd.h>
 
-static void receive_data(int clientfd, RequestParser &parser)
+static bool receive_data(int clientfd, RequestParser &parser)
 {
 	char	buf[1024];
+	bool	parser_state;
 
 	size_t bytes_read = 1;
 	std::cout << '\n';
@@ -18,10 +19,11 @@ static void receive_data(int clientfd, RequestParser &parser)
 		bytes_read = recv(clientfd, buf, 1024, 0);
 		std::string better_buf(buf, bytes_read);
 		std::cout << better_buf << '\n';
-		parser.fetch_data(better_buf);
+		parser_state = parser.fetch_data(better_buf);
 		if (better_buf.find("\r\n"))
 			break ;
 	}
+	return parser_state;
 }
 
 void handle_client(const Config &config, fd_set *socket_fds, std::vector<Socket> &sockets)
@@ -39,20 +41,22 @@ void handle_client(const Config &config, fd_set *socket_fds, std::vector<Socket>
 	for (const int fd : client_fds)
 	{
 		RequestParser		parser;
-		receive_data(fd, parser);
-		switch (parser.getMethod())
-		{
-			case HttpMethod::GET:
-				Http_Get(fd, config.routes[0], parser);
-				break;
-			case (HttpMethod::POST):
-				break ;
-			case (HttpMethod::DELETE):
+		if (!receive_data(fd, parser))
+			(1);//ServerError();
+		else
+			switch (parser.getMethod())
+			{
+				case HttpMethod::GET:
+					Http_Get(fd, config.routes[0], parser);
+					break;
+				case (HttpMethod::POST):
+					break ;
+				case (HttpMethod::DELETE):
 
-				break ;
-			default:
-				break;
-		}
+					break ;
+				default:
+					break;
+			}
 	}
 	for (const int fd : client_fds)
 		close(fd);
