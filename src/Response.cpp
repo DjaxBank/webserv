@@ -15,7 +15,7 @@ std::string Response::get_timestr()
 	return buff;
 }
 
-void	Response::find_contentype()
+bool	Response::find_contentype()
 {
 	if (file_location.find_last_of('.') != file_location.npos)
 	{
@@ -30,7 +30,9 @@ void	Response::find_contentype()
 		auto it = types.find(file_location.substr(file_location.find_last_of('.')));
 		if (it != types.end())
 			content_type = it->second;
+		return true;
 	}
+	return false;
 }
 
 Response::Response(const Route_rule &route, const RequestParser &parser) : Date(get_timestr()), file_location(route.root + parser.getTarget())
@@ -53,8 +55,7 @@ void Response::Send(const int fd)
 	Response_header = "Date: " + Date + "\r\n";
 	write(fd, Response_header.c_str(), Response_header.length());
 	std::cout << Response_header;
-	find_contentype();
-	if (!content_type.empty())
+	if (find_contentype())
 	{
 		Response_header = "Content-Type: " + content_type + "\r\n";
 		write(fd, Response_header.c_str(), Response_header.length());
