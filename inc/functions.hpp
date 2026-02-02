@@ -7,4 +7,4 @@
 #include "config.hpp"
 
 void handle_client(const Config &config, fd_set *socket_fds, std::vector<Socket> &sockets);
-void Http_Get(const int &fd, const Route_rule &route, const RequestParser &parser);
+void Http_Get(const int fd, const Route_rule &route, const RequestParser &parser);

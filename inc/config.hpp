@@ -17,7 +17,7 @@ class Config
 		Config(const Config &other);
 		Config &operator=(const Config &other);
 		void	ImportIntPortPairs(std::string value);
-		void	ImportRoute(std::string raw, std::ifstream &fstream, size_t linec);
+		void	ImportRoute(std::ifstream &fstream, size_t &linec);
 		void	CheckAllFull();		
 	public:	
 		std::vector<socket_pair>	socket_pairs;
