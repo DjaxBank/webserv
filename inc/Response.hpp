@@ -5,6 +5,7 @@
 class Response
 {
 	private:
+		const int		fd;
 		std::string		status;
 		std::string		content_type;
 		std::string		content_length;
@@ -13,7 +14,8 @@ class Response
 		Response();
 		std::string		get_timestr();
 		bool			find_contentype();
+		void			Send(std::string data);
 	public:
-		Response(const Route_rule &route, const RequestParser &parser);
-		void	Send(const int fd);
+		Response(const Route_rule &route, const RequestParser &parser, const int fd);
+		void	Reply();
 };

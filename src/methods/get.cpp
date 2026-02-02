@@ -5,8 +5,8 @@
 
 void	Http_Get(const int fd, const Route_rule &route, const RequestParser &parser)
 {
-	Response		response(route, parser);
+	Response		response(route, parser, fd);
 
 
-	response.Send(fd);
+	response.Reply();
 }
