@@ -19,6 +19,8 @@ class Response
 		Response();
 		std::string 	ExtractFile(std::string file_path, size_t *total_bytes);
 		void 			GET();
+		void 			POST();
+		void 			DELETE();
 		std::string		get_timestr();
 		bool			find_contentype();
 		void			Send(std::string data);
