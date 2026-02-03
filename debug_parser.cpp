@@ -1,9 +1,8 @@
-#include "inc/requestParser.hpp"
+#include "requestParser.hpp"
 #include <iostream>
 #include <string>
 #include <algorithm>
 
-// Forward declare external functions from requestParser.cpp
 extern std::string state_tostring(ParserState state);
 
 int main() {

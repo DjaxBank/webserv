@@ -19,7 +19,7 @@ static bool receive_data(int clientfd, RequestParser &parser)
 		bytes_read = recv(clientfd, buf, 1024, 0);
 		std::string better_buf(buf, bytes_read);
 		std::cout << better_buf << '\n';
-		parser_state = parser.fetch_data(better_buf);
+		parser_state = parser.parseClientRequest(better_buf);
 		if (better_buf.find("\r\n"))
 			break ;
 	}

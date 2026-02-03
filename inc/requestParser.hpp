@@ -2,7 +2,7 @@
 #define REQUESTPARSER_HPP
 
 #include <string>
-#include "../inc/Request.hpp"
+#include "Request.hpp"
 
 enum class ParserState
 {

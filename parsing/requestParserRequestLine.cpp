@@ -1,4 +1,4 @@
-#include "../inc/requestParser.hpp"
+#include "requestParser.hpp"
 #include <iostream>
 
 HttpMethod string_tomethod(const std::string& str);
