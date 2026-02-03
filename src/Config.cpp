@@ -54,8 +54,7 @@ void Config::ImportRoute(std::ifstream &fstream, size_t &linec)
 	const size_t route_start = linec;
 	Route_rule new_route;
 	std::vector<std::string>	route_raw;
-	bool open = false;
-	bool closed = false;
+	bool open, closed, dir_list_present = false;
 	while(fstream.is_open()&& !closed)
 	{
 		std::string line;
@@ -85,11 +84,37 @@ void Config::ImportRoute(std::ifstream &fstream, size_t &linec)
 		else if (str.find("default = ") != str.npos)
 			new_route.default_dir_file = str.substr(str.find("default =") + 10);
 		else if (str.find("directorylisting =") != str.npos)
+		{
+			dir_list_present = true;
 			new_route.directorylisting = str.substr(str.find("directorylisting =") + 19) == "true";
+		}
 	}
+	std::vector<std::string> missing_options;
+	const std::string	route_options[] {
+		"route",
+		"root",
+		"default"
+	};
+	std::string			*route_locs[] {
+		&new_route.route,
+		&new_route.root,
+		&new_route.default_dir_file,
+	};
+	for (size_t i = 0; i < 3; i++)
+		if (route_locs[i]->empty())
+			missing_options.push_back(route_options[i]);
+	if (dir_list_present == false)
+		missing_options.push_back("directorylisting");
 	routes.push_back(new_route);
+	if (!missing_options.empty())
+	{
+		std::cerr << "Error setting up route, missing directives:";
+		for (std::string &current : missing_options)
+			std::cerr << '\n' << current;
+		std::cerr << '\n';
+		throw MissingOptionException();
+	}
 }
-
 Config::Config(const char *ConfigFile)
 {
 	std::ifstream		fstream(ConfigFile);
@@ -135,9 +160,7 @@ Config::Config(const char *ConfigFile)
 			}
 		}
 		if (!valid_option && !line.empty())
-		{
 			throw std::runtime_error("unknown directive at line " + std::to_string(linec) + ": " + line);
-		}
 	}
 	CheckAllFull();
 }

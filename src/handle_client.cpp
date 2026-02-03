@@ -15,7 +15,6 @@ static bool receive_data(int clientfd, RequestParser &parser)
 	bool	parser_state;
 
 	ssize_t bytes_read = 1;
-	std::cout << '\n';
 	while(bytes_read > 0)
 	{
 		bytes_read = recv(clientfd, buf, 1024, 0);
@@ -71,7 +70,7 @@ void handle_client(const Config &config, fd_set *socket_fds, std::vector<Socket>
 			(1);//ServerError();
 		else
 		{
-			Response		response(config, config.routes[0], parser, fd, parser.getMethod());
+			Response	response(config, config.routes[0], parser, fd, parser.getMethod());
 			response.Reply();
 		}
 	}

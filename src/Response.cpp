@@ -42,12 +42,15 @@ Response::Response(const Config &config, const Route_rule &route, const RequestP
 {
 	Forbiddenpage = config.Forbidden;
 	NotFoundPage = config.NotFound;
-	if (access(file_location.c_str(), F_OK) == -1)
-		status = "404 Not Found";
-	else if (access(file_location.c_str(), R_OK) == -1)
-		status = "403 Forbidden";
-	else
-		status = "200 OK";
+	if (status.empty())
+	{
+		if (access(file_location.c_str(), F_OK) == -1)
+			status = "404 Not Found";
+		else if (access(file_location.c_str(), R_OK) == -1)
+			status = "403 Forbidden";
+		else
+			status = "200 OK";
+	}
 }
 
 void Response::Send(std::string data)
@@ -84,6 +87,17 @@ void Response::GET()
 	Send("content-length: " + std::to_string(total_bytes) + "\r\n");
 }
 
+void Response::POST()
+{
+
+}
+
+void Response::DELETE()
+{
+
+}
+
+
 void Response::Reply()
 {
 	Send("HTTP/1.1 " + status + "\r\n");
@@ -101,10 +115,14 @@ void Response::Reply()
 		switch (method)
 		{
 			case (HttpMethod::GET):
-			{
 				this->GET();
 				break;
-			}
+			case (HttpMethod::POST):
+				this->POST();
+				break;
+			case (HttpMethod::DELETE):
+				this->DELETE();
+				break;
 			default:
 				break;
 		}
