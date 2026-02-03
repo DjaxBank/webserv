@@ -26,6 +26,30 @@ static bool receive_data(int clientfd, RequestParser &parser)
 	return parser_state;
 }
 
+static void check_ready(std::vector<int> &client_fds)
+{
+	fd_set set;
+	FD_ZERO(&set);
+	int max_fd = 0;
+	for (const int fd : client_fds)
+	{
+		FD_SET(fd, &set);
+		if (fd > max_fd)
+			max_fd = fd;
+	}
+
+	timeval timeout{1, 0};
+	select(max_fd + 1, &set, NULL, NULL, &timeout);
+	for (std::vector<int>::iterator i = client_fds.begin() ; i < client_fds.end() ; i++)
+	{
+		if (!FD_ISSET(*i, &set))
+		{
+			close(*i);
+			client_fds.erase(i);
+		}
+	}
+}
+
 void handle_client(const Config &config, fd_set *socket_fds, std::vector<Socket> &sockets)
 {
 	std::vector<int>	client_fds;
@@ -38,6 +62,7 @@ void handle_client(const Config &config, fd_set *socket_fds, std::vector<Socket>
 			client_fds.push_back(accept(sockets[i].get_socket_fd(), reinterpret_cast <sockaddr *>(&sockets[i].get_addr()), &addr_len));
 		}
 	}
+	check_ready(client_fds);
 	for (const int fd : client_fds)
 	{
 		RequestParser		parser;

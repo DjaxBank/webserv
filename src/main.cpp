@@ -4,6 +4,16 @@
 #include "config.hpp"
 #include "Socket.hpp"
 #include "functions.hpp"
+#include "signal.h"
+
+bool server_running;
+
+static void signal_handler(int signal)
+{
+	(void)signal;
+	server_running = false;
+	std::cout << '\n';
+}
 
 static fd_set setup_socket_fds(std::vector<Socket> &sockets)
 {
@@ -33,10 +43,11 @@ int main(int argc, char **argv)
 		std::cerr << "./webserv [configuration file]\n";
 		return EXIT_FAILURE;
 	}
+	signal(SIGINT, signal_handler);
 	try
 	{
 		Config config(argv[1]);
-		bool server_running = true;
+		server_running = true;
 		std::vector<Socket> sockets = setup_sockets(config.socket_pairs);
 		while (server_running)
 		{
@@ -45,7 +56,8 @@ int main(int argc, char **argv)
 			for (size_t i = 0 ; i < sockets.size() ; i ++)
 				if (sockets[i].get_socket_fd() > max_fd)
 					max_fd = sockets[i].get_socket_fd();
-			if (select(max_fd + 1, &socket_fds, NULL, NULL, NULL) > 0)
+			timeval timeout {1, 0};
+			if (select(max_fd + 1, &socket_fds, NULL, NULL, &timeout) > 0)
 				handle_client(config, &socket_fds, sockets);
 		}
 	}
