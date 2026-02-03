@@ -5,7 +5,7 @@
 #include <chrono>
 #include <fstream>
 #include <iostream>
-
+#include <sys/socket.h>
 std::string Response::get_timestr()
 {
 	char buff[1024];
@@ -49,7 +49,8 @@ Response::Response(const Route_rule &route, const RequestParser &parser, const i
 
 void Response::Send(std::string data)
 {
-	write(fd, data.c_str(), data.length());
+	if (send(fd, data.c_str(), data.length(), MSG_NOSIGNAL) < 0)
+		std::cerr << "client disconnected\n";
 }
 
 void Response::Reply()
