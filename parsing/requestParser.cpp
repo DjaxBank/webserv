@@ -1,5 +1,5 @@
-#include "../inc/requestParser.hpp"
-#include "../inc/Request.hpp"
+#include "requestParser.hpp"
+#include "Request.hpp"
 #include <iostream>
 #include <map>
 #include <cctype>

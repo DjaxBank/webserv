@@ -1,4 +1,4 @@
-#include "../inc/requestParser.hpp"
+#include "requestParser.hpp"
 #include <iostream>
 
 /* Extracts the complete headers section from buffer
