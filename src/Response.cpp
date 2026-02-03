@@ -54,8 +54,9 @@ void Response::Send(std::string data)
 
 void Response::Reply()
 {
-	Send("HTTP/1.0 " + status + "\r\n");
+	Send("HTTP/1.1 " + status + "\r\n");
 	Send("Date: " + Date + "\r\n");
+	Send("Connection: close\r\n");
 	std::string body;
 	if (status == "200 OK")
 	{
