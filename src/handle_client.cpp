@@ -12,7 +12,7 @@ static bool receive_data(int clientfd, RequestParser &parser)
 	char	buf[1024];
 	bool	parser_state;
 
-	size_t bytes_read = 1;
+	ssize_t bytes_read = 1;
 	std::cout << '\n';
 	while(bytes_read > 0)
 	{
