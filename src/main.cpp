@@ -6,7 +6,7 @@
 #include "functions.hpp"
 #include "signal.h"
 
-bool server_running;
+static bool server_running;
 
 static void signal_handler(int signal)
 {
