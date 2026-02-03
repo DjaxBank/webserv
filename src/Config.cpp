@@ -9,7 +9,7 @@ void Config::CheckAllFull()
 	const char *str_messages[]	{" - 403 =", " - 404 =", " - MaxRequestBodySize ="};
 	std::vector<std::string>	missing_str;
 
-	if (socket_pairs.empty())
+	if (sockets.empty())
 		missing_str.emplace_back(" - listen =");
 	for (size_t i = 0; i < 3; i++)
 	{
@@ -26,9 +26,10 @@ void Config::CheckAllFull()
 	}
 }
 
-void Config::ImportIntPortPairs(std::string value)
+std::vector<socket_pair>  Config::ImportIntPortPairs(std::string value)
 {
 	size_t i = 0;
+	std::vector<socket_pair> socket_pairs;
 	while (true)
 	{
 		size_t delimpos = value.find_first_of(':', i);
@@ -47,6 +48,7 @@ void Config::ImportIntPortPairs(std::string value)
 			i = delimpos + 1;
 		}
 	}
+	return socket_pairs;
 }
 
 void Config::ImportRoute(std::ifstream &fstream, size_t &linec)
@@ -115,6 +117,19 @@ void Config::ImportRoute(std::ifstream &fstream, size_t &linec)
 		throw MissingOptionException();
 	}
 }
+
+std::vector<Socket> Config::setup_sockets(const std::vector<socket_pair> &pairs)
+{
+	const size_t end = pairs.size();
+	std::vector<Socket> sockets;
+	sockets.reserve(end);
+	for (size_t i = 0 ; i < end ; i++)
+	{
+		sockets.emplace_back(pairs[i].port);
+	}
+	return sockets;
+}
+
 Config::Config(const char *ConfigFile)
 {
 	std::ifstream		fstream(ConfigFile);
@@ -151,7 +166,7 @@ Config::Config(const char *ConfigFile)
 				value.erase(end + 1);
 				value.erase(0, start);
 				if (i == 0)
-					ImportIntPortPairs(value);
+					sockets = setup_sockets(ImportIntPortPairs(value));
 				else if (i == 1)
 					ImportRoute(fstream, linec);
 				else

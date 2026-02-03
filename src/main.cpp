@@ -6,7 +6,7 @@
 #include "functions.hpp"
 #include "signal.h"
 
-static bool server_running;
+static bool server_running = true;
 
 static void signal_handler(int signal)
 {
@@ -25,17 +25,21 @@ static fd_set setup_socket_fds(std::vector<Socket> &sockets)
 	return socket_fds;
 }
 
-static std::vector<Socket> setup_sockets(const std::vector<socket_pair> &pairs)
+static void server_loop(Config config)
 {
-	const size_t end = pairs.size();
-	std::vector<Socket> sockets;
-	sockets.reserve(end);
-	for (size_t i = 0 ; i < end ; i++)
+	while (server_running)
 	{
-		sockets.emplace_back(pairs[i].port);
+		fd_set socket_fds = setup_socket_fds(config.sockets);
+		int max_fd = 0;
+		for (size_t i = 0 ; i < config.sockets.size() ; i ++)
+			if (config.sockets[i].get_socket_fd() > max_fd)
+				max_fd = config.sockets[i].get_socket_fd();
+		timeval timeout {1, 0};
+		if (select(max_fd + 1, &socket_fds, NULL, NULL, &timeout) > 0)
+			handle_client(config, &socket_fds, config.sockets);
 	}
-	return sockets;
 }
+
 int main(int argc, char **argv)
 {
 	if (argc != 2)
@@ -46,20 +50,7 @@ int main(int argc, char **argv)
 	signal(SIGINT, signal_handler);
 	try
 	{
-		Config config(argv[1]);
-		server_running = true;
-		std::vector<Socket> sockets = setup_sockets(config.socket_pairs);
-		while (server_running)
-		{
-			fd_set socket_fds = setup_socket_fds(sockets);
-			int max_fd = 0;
-			for (size_t i = 0 ; i < sockets.size() ; i ++)
-				if (sockets[i].get_socket_fd() > max_fd)
-					max_fd = sockets[i].get_socket_fd();
-			timeval timeout {1, 0};
-			if (select(max_fd + 1, &socket_fds, NULL, NULL, &timeout) > 0)
-				handle_client(config, &socket_fds, sockets);
-		}
+		server_loop(argv[1]);
 	}
 	catch(const std::exception& e)
 	{
