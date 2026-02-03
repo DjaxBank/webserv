@@ -2,7 +2,7 @@
 #include <vector>
 #include <string>
 #include <exception>
-#include "UrlRule.hpp"
+#include "route.hpp"
 
 struct socket_pair
 {
@@ -16,21 +16,18 @@ class Config
 		Config();
 		Config(const Config &other);
 		Config &operator=(const Config &other);
-		void						ImportIntPortPairs(std::string value);
+		void	ImportIntPortPairs(std::string value);
+		void	ImportRoute(std::ifstream &fstream, size_t &linec);
 		void	CheckAllFull();		
 	public:	
 		std::vector<socket_pair>	socket_pairs;
 		std::string					Forbidden;
 		std::string					NotFound;
 		std::string					MaxRequestBodySize;
-		std::vector<UrlRule>		Url_rules;
+		std::vector<Route_rule>		routes;
+
 		Config(const char *ConfigFile);
 		~Config();
-		class UnknownOptionException : public std::exception
-		{
-			public:
-				const char *what() const throw(){return "unknown directive at line ";};
-		};
 		class MissingOptionException : public std::exception
 		{
 			public:

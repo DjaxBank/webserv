@@ -8,27 +8,19 @@ void Config::CheckAllFull()
 	std::string *str_options[]	{&Forbidden, &NotFound, &MaxRequestBodySize};
 	const char *str_messages[]	{" - 403 =", " - 404 =", " - MaxRequestBodySize ="};
 	std::vector<std::string>	missing_str;
-	bool						has_missing = false;
+
 	if (socket_pairs.empty())
-	{
-		has_missing = true;
 		missing_str.emplace_back(" - listen =");
-	}
 	for (size_t i = 0; i < 3; i++)
 	{
 		if (str_options[i]->empty())
-		{
-			has_missing = true;
 			missing_str.emplace_back(str_messages[i]);
-		}
 	}
-	if (has_missing == true)
+	if (!missing_str.empty())
 	{
 		std::cerr << "Error setting up config, missing directives:";
 		for (std::string &current : missing_str)
-		{
 			std::cerr << '\n' << current;
-		}
 		std::cerr << '\n';
 		throw MissingOptionException();
 	}
@@ -57,31 +49,77 @@ void Config::ImportIntPortPairs(std::string value)
 	}
 }
 
+void Config::ImportRoute(std::ifstream &fstream, size_t &linec)
+{
+	const size_t route_start = linec;
+	Route_rule new_route;
+	std::vector<std::string>	route_raw;
+	bool open = false;
+	bool closed = false;
+	while(fstream.is_open()&& !closed)
+	{
+		std::string line;
+		std::getline(fstream, line);
+		linec++;
+		if (!line.empty())
+		{
+			if (line.find('{') != line.npos)
+			{
+				open = true;
+				line.erase(0, line.find('{') + 1);
+			}
+			if (!line.empty())
+			route_raw.push_back(line);
+		}
+		if (line.find('}') != line.npos)
+			closed = true;
+	}
+	if (!open || !closed)
+		throw std::runtime_error("route at line " +  std::to_string(route_start) + " not properly enclosed with { and }");
+	for (std::string &str : route_raw)
+	{
+		if (str.find("route =") != str.npos)
+			new_route.route = str.substr(str.find("route =") + 8);
+		else if (str.find("root = ") != str.npos)
+			new_route.root = str.substr(str.find("root =") + 7);
+		else if (str.find("default = ") != str.npos)
+			new_route.default_dir_file = str.substr(str.find("default =") + 10);
+		else if (str.find("directorylisting =") != str.npos)
+			new_route.directorylisting = str.substr(str.find("directorylisting =") + 19) == "true";
+	}
+	routes.push_back(new_route);
+}
+
 Config::Config(const char *ConfigFile)
 {
-	std::ifstream fstream(ConfigFile);
-	std::string line;
-	const std::string config_options[] {
+	std::ifstream		fstream(ConfigFile);
+	size_t				linec = 0;
+	const std::string	config_options[] {
 		"listen =",
+		"route",
 		"403 =",
 		"404 =",
 		"MaxRequestBodySize ="
 	};
-	std::string *config_locs[]
-	{
+	std::string			*config_locs[] {
 		nullptr,
+		nullptr, 
 		&this->Forbidden,
 		&this->NotFound,
 		&this->MaxRequestBodySize
 	};
 	while (fstream.is_open() && !fstream.eof())
 	{
+		std::string line;
+		bool 		valid_option = false;
 		std::getline(fstream, line);
-		for (size_t i = 0; i < 4; i++)
+		linec++;
+		for (size_t i = 0; i < 5 && !line.empty(); i++)
 		{
 			size_t pos = line.find(config_options[i]);
 			if (pos != std::string::npos)
 			{
+				valid_option = true;
 				std::string value = line.substr(pos + config_options[i].length());
 				size_t start = value.find_first_not_of(' ');
 				size_t end = value.find_last_not_of(' ');
@@ -89,15 +127,16 @@ Config::Config(const char *ConfigFile)
 				value.erase(0, start);
 				if (i == 0)
 					ImportIntPortPairs(value);
+				else if (i == 1)
+					ImportRoute(fstream, linec);
 				else
 					*config_locs[i] = value;
-				line.clear();
 				break ;
 			}
 		}
-		if (!line.empty())
+		if (!valid_option && !line.empty())
 		{
-			throw Config::UnknownOptionException();
+			throw std::runtime_error("unknown directive at line " + std::to_string(linec) + ": " + line);
 		}
 	}
 	CheckAllFull();
