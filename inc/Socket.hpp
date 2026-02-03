@@ -1,7 +1,7 @@
 #pragma once
 
 #include <netinet/in.h>
-
+#include <exception>
 class Socket
 {
 	private:

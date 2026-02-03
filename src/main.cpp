@@ -46,9 +46,7 @@ int main(int argc, char **argv)
 				if (sockets[i].get_socket_fd() > max_fd)
 					max_fd = sockets[i].get_socket_fd();
 			if (select(max_fd + 1, &socket_fds, NULL, NULL, NULL) > 0)
-				handle_client(&socket_fds, sockets);
-			else
-				std::cerr << "select error occured\n";
+				handle_client(config, &socket_fds, sockets);
 		}
 	}
 	catch(const std::exception& e)
