@@ -6,7 +6,7 @@ SRC = parsing/Request.cpp \
 	parsing/requestParserHeaders.cpp \
 	parsing/requestParserBody.cpp \
 	parsing/requestParserUtils.cpp \
-	src/main.cpp src/Config.cpp src/Socket.cpp src/handle_client.cpp src/methods/get.cpp src/Response.cpp
+	src/main.cpp src/Config.cpp src/Socket.cpp src/handle_client.cpp src/Response.cpp
 DEBUG_SRC = parsing/Request.cpp \
 		parsing/requestParser.cpp \
 		parsing/requestParserRequestLine.cpp \
