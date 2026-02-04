@@ -83,10 +83,10 @@ std::string Response::ExtractFile(std::string file_path, size_t *total_bytes)
 void Response::GET()
 {
 	if (find_contentype())
-		Send("Content-Type: " + content_type + "\r\n");
+		this->Send("Content-Type: " + content_type + "\r\n");
 	size_t total_bytes;
 	body = ExtractFile(file_location, &total_bytes);
-	Send("content-length: " + std::to_string(total_bytes) + "\r\n");
+	this->Send("content-length: " + std::to_string(total_bytes) + "\r\n");
 }
 
 void Response::POST()
@@ -102,9 +102,9 @@ void Response::DELETE()
 
 void Response::Reply()
 {
-	Send("HTTP/1.1 " + status + "\r\n");
-	Send("Date: " + Date + "\r\n");
-	Send("Connection: close\r\n");
+	this->Send("HTTP/1.1 " + status + "\r\n");
+	this->Send("Date: " + Date + "\r\n");
+	this->Send("Connection: close\r\n");
 	if (status != "200 OK")
 	{
 		if (status == "403 Forbidden")
@@ -129,8 +129,8 @@ void Response::Reply()
 				break;
 		}
 	}
-	Send("\r\n");
-	Send(body);
+	this->Send("\r\n");
+	this->Send(body);
 }
 
 Response::~Response()
