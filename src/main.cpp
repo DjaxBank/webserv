@@ -25,16 +25,23 @@ static fd_set setup_socket_fds(std::vector<Socket> &sockets)
 	return socket_fds;
 }
 
+static void reset_sockets(Config &config, fd_set &socket_fds, int &max_fd)
+{
+	socket_fds = setup_socket_fds(config.sockets);
+	max_fd = 0;
+	for (size_t i = 0 ; i < config.sockets.size() ; i ++)
+		if (config.sockets[i].get_socket_fd() > max_fd)
+			max_fd = config.sockets[i].get_socket_fd();
+}
+
 static void server_loop(Config config)
 {
+	fd_set	socket_fds;
+	int		max_fd;
+	timeval timeout{1, 0};
 	while (server_running)
 	{
-		fd_set socket_fds = setup_socket_fds(config.sockets);
-		int max_fd = 0;
-		for (size_t i = 0 ; i < config.sockets.size() ; i ++)
-			if (config.sockets[i].get_socket_fd() > max_fd)
-				max_fd = config.sockets[i].get_socket_fd();
-		timeval timeout {1, 0};
+		reset_sockets(config, socket_fds, max_fd);
 		if (select(max_fd + 1, &socket_fds, NULL, NULL, &timeout) > 0)
 			handle_client(config, &socket_fds, config.sockets);
 	}
