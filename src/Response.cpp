@@ -64,6 +64,8 @@ std::string Response::ExtractFile(std::string file_path, size_t *total_bytes)
 {	
 	std::string body;
 	std::ifstream file(file_path);
+	if (total_bytes)
+		*total_bytes = 0;
 	while (true)
 	{
 		char buff[1024];
@@ -82,7 +84,7 @@ void Response::GET()
 {
 	if (find_contentype())
 		Send("Content-Type: " + content_type + "\r\n");
-	size_t total_bytes = 0;
+	size_t total_bytes;
 	body = ExtractFile(file_location, &total_bytes);
 	Send("content-length: " + std::to_string(total_bytes) + "\r\n");
 }
