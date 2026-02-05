@@ -37,8 +37,8 @@ bool Response::find_contentype()
 	return false;
 }
 
-Response::Response(const Config &config, const Route_rule &route, const RequestParser &parser, const int fd, HttpMethod method) 
-	: fd(fd), method(method), Date(get_timestr()), file_location(route.root + parser.getTarget())
+Response::Response(const Config &config, const Route_rule &route, const RequestParser &parser, const int fd) 
+	: fd(fd), parser(parser), method(parser.getMethod()), Date(get_timestr()), file_location(route.root + parser.getTarget())
 {
 	Forbiddenpage = config.Forbidden;
 	NotFoundPage = config.NotFound;
