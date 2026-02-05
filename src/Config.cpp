@@ -26,10 +26,10 @@ void Config::CheckAllFull()
 	}
 }
 
-std::vector<socket_pair>  Config::ImportIntPortPairs(std::string value)
+std::map<int, std::string>  Config::ImportPortPairs(std::string value)
 {
 	size_t i = 0;
-	std::vector<socket_pair> socket_pairs;
+	std::map<int, std::string> socket_pairs;
 	while (true)
 	{
 		size_t delimpos = value.find_first_of(':', i);
@@ -40,11 +40,16 @@ std::vector<socket_pair>  Config::ImportIntPortPairs(std::string value)
 			size_t left 	= value.find_last_of(' ', delimpos);
 			if (left == value.npos)
 				left = 0;
-			size_t right	= value.find_first_of(' ', delimpos);
+			else
+				left++;
+			size_t right	= value.find_first_of(' ', delimpos) - 1;
 			if (right == value.npos)
 				right = value.length();
-			socket_pair new_pair {value.substr(left, delimpos), std::atoi(value.substr(delimpos + 1, right).c_str())};
-			socket_pairs.push_back(new_pair);
+			int port = std::atoi(value.substr(delimpos + 1, right - delimpos).c_str());
+			std::string interface = value.substr(left, delimpos - left);
+			if (socket_pairs.find(port) != socket_pairs.end())
+				throw std::runtime_error("double usage of port " + std::to_string(port));
+			socket_pairs.emplace(port, interface);
 			i = delimpos + 1;
 		}
 	}
@@ -118,15 +123,13 @@ void Config::ImportRoute(std::ifstream &fstream, size_t &linec)
 	}
 }
 
-std::vector<Socket> Config::setup_sockets(const std::vector<socket_pair> &pairs)
+std::vector<Socket> Config::setup_sockets(const std::map<int, std::string> &pairs)
 {
 	const size_t end = pairs.size();
 	std::vector<Socket> sockets;
 	sockets.reserve(end);
-	for (size_t i = 0 ; i < end ; i++)
-	{
-		sockets.emplace_back(pairs[i].port);
-	}
+	for (std::pair<int, std::string> pair : pairs)
+		sockets.emplace_back(pair);
 	return sockets;
 }
 
@@ -166,7 +169,7 @@ Config::Config(const char *ConfigFile)
 				value.erase(end + 1);
 				value.erase(0, start);
 				if (i == 0)
-					sockets = setup_sockets(ImportIntPortPairs(value));
+					sockets = setup_sockets(ImportPortPairs(value));
 				else if (i == 1)
 					ImportRoute(fstream, linec);
 				else
