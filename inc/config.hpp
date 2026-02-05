@@ -2,15 +2,26 @@
 #include <vector>
 #include <string>
 #include <exception>
-#include "route.hpp"
-#include "Socket.hpp"
 #include <map>
+#include "requestParser.hpp"
+#include "Socket.hpp"
 
 struct CGI
 {
 
 		// TO IMPLEMENT
 
+};
+
+
+struct Route_rule
+{
+	std::string						route;
+	std::string						root;
+	std::vector<HttpMethod>			http_methods;
+	std::string						redirection;
+	std::string						default_dir_file;
+	bool							directorylisting;
 };
 
 class Config
