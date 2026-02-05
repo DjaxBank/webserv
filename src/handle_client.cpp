@@ -70,7 +70,7 @@ void handle_client(const Config &config, fd_set *socket_fds, std::vector<Socket>
 			(1);//ServerError();
 		else
 		{
-			Response	response(config, config.routes[0], parser, fd, parser.getMethod());
+			Response	response(config, config.routes[0], parser, fd);
 			response.Reply();
 		}
 	}
