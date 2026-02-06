@@ -26,6 +26,7 @@ class Response
 							Response();
 	public:
 		Response(const Config &config, const Route_rule &route, const RequestParser &parser, const int fd);
+		Response(const Config &config, const Route_rule &route, const RequestParser &parser, const int fd, std::string status);
 		void	Reply();
 		~Response();
 };

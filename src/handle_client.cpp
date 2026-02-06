@@ -8,23 +8,23 @@
 #include <unistd.h>
 #include "Response.hpp"
 
-
 static bool receive_data(int clientfd, RequestParser &parser)
 {
 	char	buf[1024];
-	bool	parser_state;
 
 	ssize_t bytes_read = 1;
+	std::string request_raw;
 	while(bytes_read > 0)
 	{
 		bytes_read = recv(clientfd, buf, 1024, 0);
 		std::string better_buf(buf, bytes_read);
-		std::cout << better_buf;
-		parser_state = parser.parseClientRequest(better_buf);
-		if (better_buf.find("\r\n"))
+		request_raw += better_buf;
+		if (request_raw.find("\r\n"))
 			break ;
 	}
-	return parser_state;
+	std::string logging = request_raw.substr(0, request_raw.find(" HTTP/"));
+	std::cout << logging << ' ';
+	return parser.parseClientRequest(request_raw);
 }
 
 static void check_ready(std::vector<int> &client_fds)
@@ -67,7 +67,10 @@ void handle_client(const Config &config, fd_set *socket_fds, std::vector<Socket>
 	{
 		RequestParser		parser;
 		if (!receive_data(fd, parser))
-			(1);//ServerError();
+		{
+			Response	response(config, config.routes[0], parser, fd, "400 Bad Request");
+			response.Reply();
+		}
 		else
 		{
 			Response	response(config, config.routes[0], parser, fd);
