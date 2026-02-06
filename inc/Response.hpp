@@ -8,12 +8,12 @@ class Response
 		const int			fd;
 		const RequestParser	&parser;
 		std::string			status;
+		HttpMethod			method;
+		std::string			Date;
 		std::string			Forbiddenpage;
 		std::string			NotFoundPage;
-		HttpMethod			method;
 		std::string			content_type;
 		std::string			content_length;
-		std::string			Date;
 		std::string			file_location;
 		std::string			body;
 		std::string 		ExtractFile(std::string file_path, size_t *total_bytes);

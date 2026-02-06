@@ -6,7 +6,24 @@
 #include <iostream>
 #include <sys/socket.h>
 
-std::string Response::get_timestr()
+Response::Response(const Config &config, const Route_rule &route, const RequestParser &parser, const int fd, std::string status) 
+	: fd(fd), parser(parser), status(status), method(parser.getMethod()), Date(get_timestr()), Forbiddenpage(config.Forbidden), NotFoundPage(config.NotFound), file_location(route.root + parser.getTarget()) {}
+
+Response::Response(const Config &config, const Route_rule &route, const RequestParser &parser, const int fd) 
+	: fd(fd), parser(parser), method(parser.getMethod()), Date(get_timestr()), Forbiddenpage(config.Forbidden), NotFoundPage(config.NotFound), file_location(route.root + parser.getTarget())
+{
+	Forbiddenpage = config.Forbidden;
+	NotFoundPage = config.NotFound;
+	if (access(file_location.c_str(), F_OK) == -1)
+		status = "404 Not Found";
+	else if (access(file_location.c_str(), R_OK) == -1)
+		status = "403 Forbidden";
+	else
+		status = "200 OK";
+}
+
+
+	std::string Response::get_timestr()
 {
 	char buff[1024];
 	std::time_t time = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
@@ -36,27 +53,6 @@ bool Response::find_contentype()
 	return false;
 }
 
-Response::Response(const Config &config, const Route_rule &route, const RequestParser &parser, const int fd) 
-	: fd(fd), parser(parser), method(parser.getMethod()), Date(get_timestr()), file_location(route.root + parser.getTarget())
-{
-	Forbiddenpage = config.Forbidden;
-	NotFoundPage = config.NotFound;
-	if (access(file_location.c_str(), F_OK) == -1)
-		status = "404 Not Found";
-	else if (access(file_location.c_str(), R_OK) == -1)
-		status = "403 Forbidden";
-	else
-		status = "200 OK";
-	std::cout << status << '\n';
-}
-
-Response::Response(const Config &config, const Route_rule &route, const RequestParser &parser, const int fd, std::string status) 
-	: fd(fd), parser(parser), status(status), method(parser.getMethod()), Date(get_timestr()), file_location(route.root + parser.getTarget())
-{
-	Forbiddenpage = config.Forbidden;
-	NotFoundPage = config.NotFound;
-	std::cout << status << '\n';
-}
 
 void Response::Send(std::string data)
 {
@@ -69,16 +65,16 @@ std::string Response::ExtractFile(std::string file_path, size_t *total_bytes)
 	std::string body;
 	std::ifstream file(file_path);
 	if (total_bytes)
-		*total_bytes = 0;
+	*total_bytes = 0;
 	while (true)
 	{
 		char buff[1024];
 		file.read(buff, sizeof(buff));
 		size_t bytes_read = file.gcount();
 		if (bytes_read == 0)
-			break;
+		break;
 		if (total_bytes)
-			*total_bytes += bytes_read;
+		*total_bytes += bytes_read;
 		body.append(buff, bytes_read);
 	}
 	return body;
@@ -87,7 +83,7 @@ std::string Response::ExtractFile(std::string file_path, size_t *total_bytes)
 void Response::GET()
 {
 	if (find_contentype())
-		this->Send("Content-Type: " + content_type + "\r\n");
+	this->Send("Content-Type: " + content_type + "\r\n");
 	size_t total_bytes;
 	body = ExtractFile(file_location, &total_bytes);
 	this->Send("content-length: " + std::to_string(total_bytes) + "\r\n");
@@ -95,17 +91,18 @@ void Response::GET()
 
 void Response::POST()
 {
-
+	
 }
 
 void Response::DELETE()
 {
-
+	
 }
 
 
 void Response::Reply()
 {
+	std::cout << status << '\n';
 	this->Send("HTTP/1.1 " + status + "\r\n");
 	this->Send("Date: " + Date + "\r\n");
 	this->Send("Connection: close\r\n");
