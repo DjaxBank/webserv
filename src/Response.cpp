@@ -41,15 +41,21 @@ Response::Response(const Config &config, const Route_rule &route, const RequestP
 {
 	Forbiddenpage = config.Forbidden;
 	NotFoundPage = config.NotFound;
-	if (status.empty())
-	{
-		if (access(file_location.c_str(), F_OK) == -1)
-			status = "404 Not Found";
-		else if (access(file_location.c_str(), R_OK) == -1)
-			status = "403 Forbidden";
-		else
-			status = "200 OK";
-	}
+	if (access(file_location.c_str(), F_OK) == -1)
+		status = "404 Not Found";
+	else if (access(file_location.c_str(), R_OK) == -1)
+		status = "403 Forbidden";
+	else
+		status = "200 OK";
+	std::cout << status << '\n';
+}
+
+Response::Response(const Config &config, const Route_rule &route, const RequestParser &parser, const int fd, std::string status) 
+	: fd(fd), parser(parser), status(status), method(parser.getMethod()), Date(get_timestr()), file_location(route.root + parser.getTarget())
+{
+	Forbiddenpage = config.Forbidden;
+	NotFoundPage = config.NotFound;
+	std::cout << status << '\n';
 }
 
 void Response::Send(std::string data)
