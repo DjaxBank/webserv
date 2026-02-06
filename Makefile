@@ -13,8 +13,6 @@ CC = c++
 INC_DIR = inc
 CPPFLAGS = -I$(INC_DIR)
 FLAGS = -Wall -Wextra -MMD -g -fno-limit-debug-info -fsanitize=address,undefined -std=c++17
-DEBUG_FLAGS = -Wall -Wextra -g -O0 -DDEBUG -std=c++17
-CXXFLAGS += -D_GLIBCXX_DEBUG -g -O0
 
 all: $(NAME)
 

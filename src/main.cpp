@@ -38,6 +38,8 @@ static void server_loop(Config config)
 {
 	fd_set	socket_fds;
 	int		max_fd;
+	for (Socket &socket : config.sockets)
+		std::cout << "Webserver listening on " << socket.info.second << " interface on port " <<  std::to_string(socket.info.first) << '\n';
 	while (server_running)
 	{
 		timeval timeout{1, 0};

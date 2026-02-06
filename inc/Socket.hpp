@@ -12,9 +12,9 @@ class Socket
 		Socket &operator=(const Socket &other);
 		int					socket_fd;
 		struct sockaddr_in	addr;
-		std::pair<int, std::string> info;
-
+		
 	public:
+		const std::pair<int, std::string> info;
 		Socket(std::pair<int, std::string> sock);
 		Socket(const Socket &other);
 		~Socket();
