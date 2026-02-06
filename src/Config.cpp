@@ -125,9 +125,9 @@ void Config::ImportRoute(std::ifstream &fstream, size_t &linec)
 
 std::vector<Socket> Config::setup_sockets(const std::map<int, std::string> &pairs)
 {
-	const size_t end = pairs.size();
 	std::vector<Socket> sockets;
-	sockets.reserve(end);
+
+	sockets.reserve(pairs.size());
 	for (std::pair<int, std::string> pair : pairs)
 		sockets.emplace_back(pair);
 	return sockets;
@@ -164,10 +164,8 @@ Config::Config(const char *ConfigFile)
 			{
 				valid_option = true;
 				std::string value = line.substr(pos + config_options[i].length());
-				size_t start = value.find_first_not_of(' ');
-				size_t end = value.find_last_not_of(' ');
-				value.erase(end + 1);
-				value.erase(0, start);
+				value.erase(value.find_last_not_of(' ') + 1);
+				value.erase(0, value.find_first_not_of(' '));
 				if (i == 0)
 					sockets = setup_sockets(ImportPortPairs(value));
 				else if (i == 1)

@@ -19,7 +19,6 @@ Socket::Socket(std::pair<int, std::string> sock) : info(sock)
 		addr.sin_addr.s_addr = INADDR_ANY;
 	if (bind(socket_fd, reinterpret_cast<struct sockaddr*>(&addr), sizeof(addr)) == -1 || listen(socket_fd, 10) == -1)	
 		throw std::runtime_error(strerror(errno));
-	std::cout << "webserver listening on port " << info.first << '\n';
 }
 
 Socket::Socket(const Socket &other) : socket_fd(other.socket_fd), addr(other.addr){}

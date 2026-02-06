@@ -54,8 +54,7 @@ Response::Response(const Config &config, const Route_rule &route, const RequestP
 
 void Response::Send(std::string data)
 {
-	if (send(fd, data.c_str(), data.length(), MSG_NOSIGNAL) < 0)
-		std::cerr << "client disconnected\n";
+	send(fd, data.c_str(), data.length(), MSG_NOSIGNAL);
 }
 
 
