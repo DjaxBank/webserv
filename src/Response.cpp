@@ -63,7 +63,7 @@ std::string Response::ExtractFile(std::string file_path, size_t *total_bytes)
 	std::string body;
 	std::ifstream file(file_path);
 	if (total_bytes)
-	*total_bytes = 0;
+		*total_bytes = 0;
 	while (true)
 	{
 		char buff[1024];
@@ -72,7 +72,7 @@ std::string Response::ExtractFile(std::string file_path, size_t *total_bytes)
 		if (bytes_read == 0)
 		break;
 		if (total_bytes)
-		*total_bytes += bytes_read;
+			*total_bytes += bytes_read;
 		body.append(buff, bytes_read);
 	}
 	return body;
