@@ -12,8 +12,6 @@ Response::Response(const Config &config, const Route_rule &route, const RequestP
 Response::Response(const Config &config, const Route_rule &route, const RequestParser &parser, const int fd) 
 	: fd(fd), parser(parser), method(parser.getMethod()), Date(get_timestr()), Forbiddenpage(config.Forbidden), NotFoundPage(config.NotFound), file_location(route.root + parser.getTarget())
 {
-	Forbiddenpage = config.Forbidden;
-	NotFoundPage = config.NotFound;
 	if (access(file_location.c_str(), F_OK) == -1)
 		status = "404 Not Found";
 	else if (access(file_location.c_str(), R_OK) == -1)
