@@ -7,18 +7,12 @@ SRC = parsing/Request.cpp \
 	parsing/requestParserBody.cpp \
 	parsing/requestParserUtils.cpp \
 	src/main.cpp src/Config.cpp src/Socket.cpp src/handle_client.cpp src/Response.cpp
-DEBUG_SRC = parsing/Request.cpp \
-		parsing/requestParser.cpp \
-		parsing/requestParserRequestLine.cpp \
-		parsing/requestParserHeaders.cpp \
-		parsing/requestParserBody.cpp \
-		parsing/requestParserUtils.cpp \
-		debug_parser.cpp
 OBJS = $(SRC:.cpp=.o)
+DEPENDS = ${OBJS:.o=.d}
 CC = c++
 INC_DIR = inc
 CPPFLAGS = -I$(INC_DIR)
-FLAGS = -Wall -Wextra -g -fno-limit-debug-info -fsanitize=address,undefined -std=c++17
+FLAGS = -Wall -Wextra -MMD -g -fno-limit-debug-info -fsanitize=address,undefined -std=c++17
 DEBUG_FLAGS = -Wall -Wextra -g -O0 -DDEBUG -std=c++17
 CXXFLAGS += -D_GLIBCXX_DEBUG -g -O0
 
@@ -27,13 +21,15 @@ all: $(NAME)
 $(NAME): $(OBJS)
 	$(CC) $(FLAGS) $(CPPFLAGS) $(OBJS) -o $(NAME)
 
-%.o: %.cpp
+%.o: %.cpp Makefile
 	$(CC) $(FLAGS) $(CPPFLAGS) -c $< -o $@
 
 clean:
-	$(RM) $(OBJS)
+	$(RM) $(OBJS) $(DEPENDS)
 
 fclean: clean
 	$(RM) $(NAME)
 
 re: fclean all
+
+-include ${DEPENDS}  
