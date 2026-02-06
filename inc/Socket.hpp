@@ -10,6 +10,7 @@ class Socket
 	private:
 		Socket();
 		Socket &operator=(const Socket &other);
+		void	setinterface();
 		int					socket_fd;
 		struct sockaddr_in	addr;
 		

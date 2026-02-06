@@ -5,6 +5,27 @@
 #include <string.h>
 #include <map>
 #include "config.hpp"
+#include <netdb.h>
+
+void Socket::setinterface()
+{
+	if (info.second == "any")
+		addr.sin_addr.s_addr = INADDR_ANY;
+	else if (info.second == "localhost")
+		addr.sin_addr.s_addr = INADDR_LOOPBACK;
+	else
+	{ 										// DOESN'T WORK
+		struct addrinfo req;
+		req.ai_family = addr.sin_family;
+		req.ai_socktype = SOCK_STREAM;
+		struct addrinfo *result = nullptr;
+		int check = getaddrinfo(info.second.c_str(), nullptr, &req, &result);
+		if (check != 0 || result == 0)
+			throw std::runtime_error(gai_strerror(check));
+		addr.sin_addr = reinterpret_cast<struct sockaddr_in*>(result->ai_addr)->sin_addr;
+		freeaddrinfo(result);
+	}
+}
 
 Socket::Socket(std::pair<int, std::string> sock) : info(sock)
 {
@@ -15,8 +36,8 @@ Socket::Socket(std::pair<int, std::string> sock) : info(sock)
 	
 	addr.sin_port = htons(info.first);
 	addr.sin_family = AF_INET;
-	if (info.second == "any")
-		addr.sin_addr.s_addr = INADDR_ANY;
+	setinterface();
+
 	if (bind(socket_fd, reinterpret_cast<struct sockaddr*>(&addr), sizeof(addr)) == -1 || listen(socket_fd, 10) == -1)	
 		throw std::runtime_error(strerror(errno));
 }
