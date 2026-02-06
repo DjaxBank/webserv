@@ -129,7 +129,8 @@ void Response::Reply()
 		}
 	}
 	this->Send("\r\n");
-	this->Send(body);
+	if (!body.empty())
+		this->Send(body);
 }
 
 Response::~Response()
