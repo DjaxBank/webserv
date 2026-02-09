@@ -50,21 +50,32 @@ static void check_ready(std::vector<int> &client_fds)
 	}
 }
 
-void handle_client(const Config &config, fd_set *socket_fds, std::vector<Socket> &sockets)
+Server &find_active_server(int fd, std::vector<Server> &servers)
+{
+	for (Server &serv : servers)
+	{
+		if (serv.sock.get_socket_fd() == fd)
+			return serv;
+	}
+	throw std::runtime_error("");
+}
+
+void handle_client(std::vector<Server> &servers, fd_set *socket_fds)
 {
 	std::vector<int>	client_fds;
-	
-	for (size_t i = 0 ; i < sockets.size() ; i ++)
+
+	for (Server &serv : servers)
 	{
-		if (FD_ISSET(sockets[i].get_socket_fd(), socket_fds))
+		if (FD_ISSET(serv.sock.get_socket_fd(), socket_fds))
 		{
 			socklen_t addr_len = sizeof(struct sockaddr_in);
-			client_fds.push_back(accept(sockets[i].get_socket_fd(), reinterpret_cast <sockaddr *>(&sockets[i].get_addr()), &addr_len));
+			client_fds.push_back(accept(serv.sock.get_socket_fd(), reinterpret_cast <sockaddr *>(&serv.sock.get_addr()), &addr_len));
 		}
 	}
 	check_ready(client_fds);
 	for (const int fd : client_fds)
 	{
+		Server &config = find_active_server(fd, servers);
 		RequestParser		parser;
 		if (!receive_data(fd, parser))
 		{

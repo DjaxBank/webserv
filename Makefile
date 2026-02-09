@@ -6,13 +6,13 @@ SRC = parsing/Request.cpp \
 	parsing/requestParserHeaders.cpp \
 	parsing/requestParserBody.cpp \
 	parsing/requestParserUtils.cpp \
-	src/main.cpp src/Config.cpp src/Socket.cpp src/handle_client.cpp src/Response.cpp
+	src/main.cpp src/Server.cpp src/Socket.cpp src/handle_client.cpp src/Response.cpp
 OBJS = $(SRC:.cpp=.o)
 DEPENDS = ${OBJS:.o=.d}
 CC = c++
 INC_DIR = inc
 CPPFLAGS = -I$(INC_DIR)
-FLAGS = -Wall -Wextra -MMD -g -fno-limit-debug-info -fsanitize=address,undefined -std=c++17
+FLAGS = -Wall -Wextra -MMD -g -fno-limit-debug-info -fsanitize=address,undefined -std=c++20
 
 all: $(NAME)
 

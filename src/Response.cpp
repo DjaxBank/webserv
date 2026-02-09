@@ -6,10 +6,10 @@
 #include <iostream>
 #include <sys/socket.h>
 
-Response::Response(const Config &config, const Route_rule &route, const RequestParser &parser, const int fd, std::string status) 
+Response::Response(const Server &config, const Route_rule &route, const RequestParser &parser, const int fd, std::string status) 
 	: fd(fd), parser(parser), status(status), method(parser.getMethod()), Date(get_timestr()), Forbiddenpage(config.Forbidden), NotFoundPage(config.NotFound), file_location(route.root + parser.getTarget()) {}
 
-Response::Response(const Config &config, const Route_rule &route, const RequestParser &parser, const int fd) 
+Response::Response(const Server &config, const Route_rule &route, const RequestParser &parser, const int fd) 
 	: fd(fd), parser(parser), method(parser.getMethod()), Date(get_timestr()), Forbiddenpage(config.Forbidden), NotFoundPage(config.NotFound), file_location(route.root + parser.getTarget())
 {
 	if (access(file_location.c_str(), F_OK) == -1)

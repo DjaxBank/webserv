@@ -8,14 +8,12 @@
 class Socket
 {
 	private:
-		Socket();
-		Socket &operator=(const Socket &other);
-		void	setinterface();
+		void				setinterface();
 		int					socket_fd;
 		struct sockaddr_in	addr;
-		
 	public:
-		const std::pair<int, std::string> info;
+		Socket() : socket_fd(-1){};
+		std::pair<int, std::string> info;
 		Socket(std::pair<int, std::string> sock);
 		Socket(const Socket &other);
 		~Socket();
