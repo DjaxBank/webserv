@@ -16,7 +16,8 @@ class smartFD
 		smartFD(smartFD &&other) noexcept;
 		smartFD & operator=(smartFD &&other) noexcept;
 		~smartFD() noexcept;
-		const int& getFd() const;
+		int getFd() const;
+		int release() noexcept;
 
 };
 
