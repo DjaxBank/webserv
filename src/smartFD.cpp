@@ -15,10 +15,21 @@ smartFD::~smartFD() noexcept
 		close(m_fd);
 }
 
-const int& smartFD::getFd() const
+int smartFD::getFd() const
 {
-	return (this->m_fd);
+	return this->m_fd;
 }
+
+/* For exceptional cases when we need to handle releasing manually
+	ie. if we use exceve, it object would destroy itelf before it ran
+	so you store it in a var and hand it off */
+int smartFD::release() noexcept
+{
+	int fd = m_fd;
+	m_fd = -1;
+	return fd;
+}
+
 smartFD::smartFD(smartFD &&other) noexcept : m_fd(other.m_fd)
 {
 	other.m_fd = -1;
