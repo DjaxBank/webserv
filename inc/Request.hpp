@@ -27,6 +27,7 @@ class Request
 		HttpMethod m_method;
 		std::string m_raw_uri;
 		std::string m_normalized_path;
+		std::string m_query;
 		HttpVersion m_version;
 		std::map<std::string, std::string> m_headers;
 		std::vector<uint8_t> m_body;

@@ -19,6 +19,7 @@ namespace HTTP_CONSTANT {
 	inline constexpr char CRLF[] = "\r\n";
 	inline constexpr size_t EMPTY_LINE_LENGTH = 4;
 	inline constexpr char EMPTY_LINE[] = "\r\n\r\n";
+	inline constexpr char SCHEME_SUFFIX[] = "://";
 	// Max size of a single header line must be less than 32kb
 	inline constexpr size_t MAX_HEADER_SIZE = 32768;
 	// Max size of headers must be less than 256kb
@@ -81,7 +82,12 @@ class RequestParser
 		bool extractChunkData(const std::string& chunked_section, size_t& pos, size_t chunk_size);
 		std::string extractKey(const std::string& header_token);
         std::string extractValue(const std::string& header_token);
-        std::string trimValue(const std::string& value);		
+        std::string trimValue(const std::string& value);
+
+		// implementing URI parsing below
+		bool parseURI(void);
+		bool errorOnScheme(const std::string& copy_uri);
+		bool normalizeURI(void);
 };
 
 #endif
