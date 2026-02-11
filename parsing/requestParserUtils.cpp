@@ -222,7 +222,7 @@ void RequestParser::debugState(const char* label) const
             << "\n[ParserState] " << (label ? label : "")
             << " \nstate=" << state_tostring(m_state) << "\""
             << " \nmethod=\"" << method_tostring(m_request.getMethod()) << "\""
-            << " \ntarget=\"" << m_request.getTarget() << "\""
+            << " \ntarget=\"" << m_request.getRawUri() << "\""
             << " \nversion=\"" << version_tostring(m_request.getVersion()) << "\""
             << " \nheaders=" << m_request.getHeaders().size() << "\n";
             

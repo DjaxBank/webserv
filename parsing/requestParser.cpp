@@ -37,7 +37,7 @@ const HttpMethod& RequestParser::getMethod() const
 
 const std::string& RequestParser::getTarget() const
 {
-    return m_request.getTarget();
+    return m_request.getRawUri();
 }
 
 const HttpVersion& RequestParser::getVersion() const

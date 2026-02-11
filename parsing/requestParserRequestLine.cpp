@@ -54,7 +54,7 @@ bool RequestParser::extractTarget(std::string& request_line)
     // Currently only checks if empty, but malformed URIs could cause issues downstream
     // but maybe its better to deal with them then?
     
-    m_request.setTarget(target_token);
+    m_request.setRawUri(target_token);
     request_line = request_line.substr(pos + 1);
     return true;
 }
