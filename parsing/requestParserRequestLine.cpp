@@ -96,6 +96,9 @@ void RequestParser::parseRequestLine()
     
     if (!extractTarget(request_line))
         return;
+
+    if (!parseURI())
+        return;
     
     if (!extractVersion(request_line))
         return;
