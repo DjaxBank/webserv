@@ -37,6 +37,11 @@ Server &find_active_server(int target_fd, std::vector<Server> &servers)
 	throw std::runtime_error("");
 }
 
+Route_rule &find_correct_route(Server &serv, RequestParser &parser)
+{
+	return serv.routes[0];
+}
+
 void handle_client(std::vector<Server> &servers, fd_set *socket_fds)
 {
 	std::vector<int>	client_fds;
@@ -55,14 +60,20 @@ void handle_client(std::vector<Server> &servers, fd_set *socket_fds)
 	{
 		Server &config = find_active_server(fd, servers);
 		RequestParser		parser;
+		Route_rule			&route = find_correct_route(config, parser);
 		if (!receive_data(fd, parser))
 		{
-			Response	response(config, config.routes[0], parser, fd, "400 Bad Request");
+			Response	response(config, route, parser, fd, "400 Bad Request");
+			response.Reply();
+		}
+		else if (!route.redirection.empty())
+		{
+			Response	response(config, route, parser, fd, "301 Moved permanently");
 			response.Reply();
 		}
 		else
 		{
-			Response	response(config, config.routes[0], parser, fd);
+			Response	response(config, route, parser, fd);
 			response.Reply();
 		}
 	}

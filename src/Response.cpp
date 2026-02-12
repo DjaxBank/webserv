@@ -7,7 +7,7 @@
 #include <sys/socket.h>
 
 Response::Response(const Server &config, const Route_rule &route, const RequestParser &parser, const int fd, std::string status) 
-	: fd(fd), parser(parser), status(status), method(parser.getMethod()), Date(get_timestr()), Forbiddenpage(config.Forbidden), NotFoundPage(config.NotFound), file_location(route.root + parser.getTarget()) {}
+	: fd(fd), parser(parser), status(status), method(parser.getMethod()), Date(get_timestr()), Forbiddenpage(config.Forbidden), NotFoundPage(config.NotFound), file_location(route.root + parser.getTarget()), redirect(route.redirection) {}
 
 Response::Response(const Server &config, const Route_rule &route, const RequestParser &parser, const int fd) 
 	: fd(fd), parser(parser), method(parser.getMethod()), Date(get_timestr()), Forbiddenpage(config.Forbidden), NotFoundPage(config.NotFound), file_location(route.root + parser.getTarget())
@@ -110,6 +110,8 @@ void Response::Reply()
 			body = ExtractFile(Forbiddenpage, nullptr);
 		else if (status == "404 Not Found")
 			body = ExtractFile(NotFoundPage, nullptr);
+		else if (status == "301 Moved permanently")
+			this->Send("Location: " + redirect + "\r\n");
 	}
 	else
 	{

@@ -58,6 +58,8 @@ void Server::ImportRoute(std::ifstream &fstream, size_t &linec)
 			dir_list_present = true;
 			new_route.directorylisting = str.substr(str.find("directorylisting =") + 19) == "true";
 		}
+		else if (str.find("redirection = ") != str.npos)
+			new_route.redirection = str.substr(str.find("redirection =") + 14);
 	}
 	std::vector<std::string> missing_options;
 	const std::string	route_options[] {
