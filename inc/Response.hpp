@@ -1,6 +1,6 @@
 #include "Request.hpp"
 #include "requestParser.hpp"
-#include "config.hpp"
+#include "Server.hpp"
 
 class Response
 {
@@ -25,8 +25,8 @@ class Response
 		void				Send(std::string data);
 							Response();
 	public:
-		Response(const Config &config, const Route_rule &route, const RequestParser &parser, const int fd);
-		Response(const Config &config, const Route_rule &route, const RequestParser &parser, const int fd, std::string status);
+		Response(const Server &config, const Route_rule &route, const RequestParser &parser, const int fd);
+		Response(const Server &config, const Route_rule &route, const RequestParser &parser, const int fd, std::string status);
 		void	Reply();
 		~Response();
 };

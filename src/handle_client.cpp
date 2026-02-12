@@ -27,44 +27,33 @@ static bool receive_data(int clientfd, RequestParser &parser)
 	return parser.parseClientRequest(request_raw);
 }
 
-static void check_ready(std::vector<int> &client_fds)
+Server &find_active_server(int target_fd, std::vector<Server> &servers)
 {
-	fd_set set;
-	FD_ZERO(&set);
-	int max_fd = 0;
-	for (const int fd : client_fds)
+	for (Server &serv : servers)
 	{
-		FD_SET(fd, &set);
-		if (fd > max_fd)
-			max_fd = fd;
+		if (target_fd == serv.sock.client_fd)
+			return serv;
 	}
-	timeval timeout{1, 0};
-	select(max_fd + 1, &set, NULL, NULL, &timeout);
-	for (std::vector<int>::iterator i = client_fds.begin() ; i < client_fds.end() ; i++)
-	{
-		if (!FD_ISSET(*i, &set))
-		{
-			close(*i);
-			client_fds.erase(i);
-		}
-	}
+	throw std::runtime_error("");
 }
 
-void handle_client(const Config &config, fd_set *socket_fds, std::vector<Socket> &sockets)
+void handle_client(std::vector<Server> &servers, fd_set *socket_fds)
 {
 	std::vector<int>	client_fds;
-	
-	for (size_t i = 0 ; i < sockets.size() ; i ++)
+
+	for (Server &serv : servers)
 	{
-		if (FD_ISSET(sockets[i].get_socket_fd(), socket_fds))
+		serv.sock.client_fd = -1;
+		if (FD_ISSET(serv.sock.get_socket_fd(), socket_fds))
 		{
 			socklen_t addr_len = sizeof(struct sockaddr_in);
-			client_fds.push_back(accept(sockets[i].get_socket_fd(), reinterpret_cast <sockaddr *>(&sockets[i].get_addr()), &addr_len));
+			serv.sock.client_fd = accept(serv.sock.get_socket_fd(), reinterpret_cast <sockaddr *>(&serv.sock.get_addr()), &addr_len);
+			client_fds.push_back(serv.sock.client_fd);
 		}
 	}
-	check_ready(client_fds);
 	for (const int fd : client_fds)
 	{
+		Server &config = find_active_server(fd, servers);
 		RequestParser		parser;
 		if (!receive_data(fd, parser))
 		{
