@@ -62,6 +62,8 @@ static std::vector<Server> importconfigfile(char *configfile)
 		getline(config, line);
 		if (line.find("server") != line.npos)
 			servers.emplace_back(config);
+		else if (!line.empty() && line.find("server") == line.npos)
+			throw std::runtime_error("unexpected attribute: " + line);
 	}
 	return servers;
 }
