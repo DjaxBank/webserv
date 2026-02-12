@@ -44,7 +44,7 @@ static void server_loop(std::vector<Server> servers)
 	std::cout << '\n';
 	while (server_running)
 	{
-		timeval timeout{1, 0};
+		timeval timeout{3, 0};
 		reset_sockets(servers, socket_fds, max_fd);
 		if (select(max_fd + 1, &socket_fds, NULL, NULL, &timeout) > 0)
 			handle_client(servers, &socket_fds);
@@ -57,7 +57,12 @@ static std::vector<Server> importconfigfile(char *configfile)
 	std::vector<Server> servers;
 
 	while (config.is_open() && !config.eof())
-		servers.emplace_back(config);
+	{
+		std::string line;
+		getline(config, line);
+		if (line.find("server") != line.npos)
+			servers.emplace_back(config);
+	}
 	return servers;
 }
 
