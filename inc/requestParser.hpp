@@ -20,6 +20,7 @@ namespace HTTP_CONSTANT {
 	inline constexpr size_t EMPTY_LINE_LENGTH = 4;
 	inline constexpr char EMPTY_LINE[] = "\r\n\r\n";
 	inline constexpr char SCHEME_SUFFIX[] = "://";
+	inline constexpr char AUTHORITY_PREFIX[] = "//";
 	// Max size of a single header line must be less than 32kb
 	inline constexpr size_t MAX_HEADER_SIZE = 32768;
 	// Max size of headers must be less than 256kb
@@ -86,8 +87,19 @@ class RequestParser
 
 		// implementing URI parsing below
 		bool parseURI(void);
-		bool errorOnScheme(const std::string& copy_uri);
-		bool normalizeURI(void);
+		bool pathTooLong(const std::string& working_uri);
+		bool validateLeadingSlash(const std::string& working_uri);
+		bool errorOnScheme(const std::string& working_uri);
+		bool errorOnAuthority(const std::string& working_uri);
+		bool errorOnEmpty(const std::string& working_uri);
+		bool errorOnUserInfo(const std::string& working_uri);
+		bool storeQuery(std::string& working_uri);
+		void trimFragment(std::string& working_uri);
+
+		// normalize funcs
+		bool normalizeURI(std::string& parsed_uri);
+		bool rejectNullBytes(std::string& parsed_uri);
+		bool decodeHexBytes(std::string& parsed_uri);
 };
 
 #endif
