@@ -15,6 +15,7 @@ class Response
 		std::string			content_type;
 		std::string			content_length;
 		std::string			file_location;
+		std::string			redirect;
 		std::string			body;
 		std::string 		ExtractFile(std::string file_path, size_t *total_bytes);
 		void 				GET();
