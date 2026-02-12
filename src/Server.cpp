@@ -1,62 +1,25 @@
-#include "config.hpp"
+#include "Server.hpp"
 #include <fstream> 
 #include <string>
 #include <iostream>
 
-void Config::CheckAllFull()
+void Server::ImportPortPairs(std::string value)
 {
-	std::string *str_options[]	{&Forbidden, &NotFound, &MaxRequestBodySize};
-	const char *str_messages[]	{" - 403 =", " - 404 =", " - MaxRequestBodySize ="};
-	std::vector<std::string>	missing_str;
-
-	if (sockets.empty())
-		missing_str.emplace_back(" - listen =");
-	for (size_t i = 0; i < 3; i++)
-	{
-		if (str_options[i]->empty())
-			missing_str.emplace_back(str_messages[i]);
-	}
-	if (!missing_str.empty())
-	{
-		std::cerr << "Error setting up config, missing directives:";
-		for (std::string &current : missing_str)
-			std::cerr << '\n' << current;
-		std::cerr << '\n';
-		throw MissingOptionException();
-	}
+	size_t delimpos = value.find_first_of(':', 0);
+	size_t left 	= value.find_last_of(' ', delimpos);
+	if (left == value.npos)
+		left = 0;
+	else
+		left++;
+	size_t right	= value.find_first_of(' ', delimpos) - 1;
+	if (right == value.npos)
+		right = value.length();
+	int port = std::atoi(value.substr(delimpos + 1, right - delimpos).c_str());
+	std::string interface = value.substr(left, delimpos - left);
+	sock = Socket({port, interface});
 }
 
-std::map<int, std::string>  Config::ImportPortPairs(std::string value)
-{
-	size_t i = 0;
-	std::map<int, std::string> socket_pairs;
-	while (true)
-	{
-		size_t delimpos = value.find_first_of(':', i);
-		if (delimpos == value.npos)
-			break;
-		else
-		{
-			size_t left 	= value.find_last_of(' ', delimpos);
-			if (left == value.npos)
-				left = 0;
-			else
-				left++;
-			size_t right	= value.find_first_of(' ', delimpos) - 1;
-			if (right == value.npos)
-				right = value.length();
-			int port = std::atoi(value.substr(delimpos + 1, right - delimpos).c_str());
-			std::string interface = value.substr(left, delimpos - left);
-			if (socket_pairs.find(port) != socket_pairs.end())
-				throw std::runtime_error("double usage of port " + std::to_string(port));
-			socket_pairs.emplace(port, interface);
-			i = delimpos + 1;
-		}
-	}
-	return socket_pairs;
-}
-
-void Config::ImportRoute(std::ifstream &fstream, size_t &linec)
+void Server::ImportRoute(std::ifstream &fstream, size_t &linec)
 {
 	const size_t route_start = linec;
 	Route_rule new_route;
@@ -119,69 +82,65 @@ void Config::ImportRoute(std::ifstream &fstream, size_t &linec)
 		for (std::string &current : missing_options)
 			std::cerr << '\n' << current;
 		std::cerr << '\n';
-		throw MissingOptionException();
+		throw std::runtime_error("");
 	}
 }
 
-std::vector<Socket> Config::setup_sockets(const std::map<int, std::string> &pairs)
+Server::Server(std::ifstream &fstream)
 {
-	std::vector<Socket> sockets;
-
-	sockets.reserve(pairs.size());
-	for (std::pair<int, std::string> pair : pairs)
-		sockets.emplace_back(pair);
-	return sockets;
-}
-
-Config::Config(const char *ConfigFile)
-{
-	std::ifstream		fstream(ConfigFile);
 	size_t				linec = 0;
-	const std::string	config_options[] {
+	bool				open, closed = false;
+	const std::string	server_options[] {
 		"listen =",
 		"route",
 		"403 =",
 		"404 =",
 		"MaxRequestBodySize ="
 	};
-	std::string			*config_locs[] {
+	std::string			*server_locs[] {
 		nullptr,
 		nullptr, 
 		&this->Forbidden,
 		&this->NotFound,
 		&this->MaxRequestBodySize
 	};
-	while (fstream.is_open() && !fstream.eof())
+
+	while (fstream.is_open() && !fstream.eof() && !closed)
 	{
 		std::string line;
 		bool 		valid_option = false;
 		std::getline(fstream, line);
 		linec++;
+		if (line.find('{') != line.npos)
+			open = true;
 		for (size_t i = 0; i < 5 && !line.empty(); i++)
 		{
-			size_t pos = line.find(config_options[i]);
+			size_t pos = line.find(server_options[i]);
 			if (pos != std::string::npos)
 			{
+				if (!open)
+					throw std::runtime_error("unexpected directive at line " + std::to_string(linec) + ": " + line);
 				valid_option = true;
-				std::string value = line.substr(pos + config_options[i].length());
+				std::string value = line.substr(pos + server_options[i].length());
 				value.erase(value.find_last_not_of(' ') + 1);
 				value.erase(0, value.find_first_not_of(' '));
 				if (i == 0)
-					sockets = setup_sockets(ImportPortPairs(value));
+					ImportPortPairs(value);
 				else if (i == 1)
 					ImportRoute(fstream, linec);
 				else
-					*config_locs[i] = value;
+					*server_locs[i] = value;
 				break ;
 			}
 		}
-		if (!valid_option && !line.empty())
+		if (line.find('}') != line.npos)
+			closed = true;
+		if (!valid_option && !line.empty() && (line.find('{') == line.npos && line.find('}') == line.npos))
 			throw std::runtime_error("unknown directive at line " + std::to_string(linec) + ": " + line);
 	}
-	CheckAllFull();
 }
 
-Config::~Config()
+Server::~Server()
 {
 
 }

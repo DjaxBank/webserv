@@ -13,7 +13,6 @@ struct CGI
 
 };
 
-
 struct Route_rule
 {
 	std::string						route;
@@ -24,30 +23,22 @@ struct Route_rule
 	bool							directorylisting;
 };
 
-class Config
+class Server
 {
 	private:
-	Config();
-	Config(const Config &other);
-	Config &operator=(const Config &other);
-	std::map<int, std::string> 	ImportPortPairs(std::string value);
-	void	ImportRoute(std::ifstream &fstream, size_t &linec);
-	void	CheckAllFull();
-	std::vector<Socket> setup_sockets(const std::map<int, std::string> &pairs);		
+		Server();
+		void	ImportPortPairs(std::string value);
+		void	ImportRoute(std::ifstream &fstream, size_t &linec);
+		void	CheckAllFull();	
 	
 	public:	
 		CGI							cgi;
-		std::vector<Socket>			sockets;
+		Socket						sock;
 		std::string					Forbidden;
 		std::string					NotFound;
 		std::string					MaxRequestBodySize;
 		std::vector<Route_rule>		routes;
 
-		Config(const char *ConfigFile);
-		~Config();
-		class MissingOptionException : public std::exception
-		{
-			public:
-				const char *what() const throw(){return nullptr;};
-		};
+		Server(std::ifstream &fstream);
+		~Server();
 };

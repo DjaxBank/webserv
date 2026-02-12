@@ -6,10 +6,10 @@
 #include <iostream>
 #include <sys/socket.h>
 
-Response::Response(const Config &config, const Route_rule &route, const RequestParser &parser, const int fd, std::string status) 
+Response::Response(const Server &config, const Route_rule &route, const RequestParser &parser, const int fd, std::string status) 
 	: fd(fd), parser(parser), status(status), method(parser.getMethod()), Date(get_timestr()), Forbiddenpage(config.Forbidden), NotFoundPage(config.NotFound), file_location(route.root + parser.getTarget()) {}
 
-Response::Response(const Config &config, const Route_rule &route, const RequestParser &parser, const int fd) 
+Response::Response(const Server &config, const Route_rule &route, const RequestParser &parser, const int fd) 
 	: fd(fd), parser(parser), method(parser.getMethod()), Date(get_timestr()), Forbiddenpage(config.Forbidden), NotFoundPage(config.NotFound), file_location(route.root + parser.getTarget())
 {
 	if (access(file_location.c_str(), F_OK) == -1)
@@ -81,7 +81,7 @@ std::string Response::ExtractFile(std::string file_path, size_t *total_bytes)
 void Response::GET()
 {
 	if (find_contentype())
-	this->Send("Content-Type: " + content_type + "\r\n");
+		this->Send("Content-Type: " + content_type + "\r\n");
 	size_t total_bytes;
 	body = ExtractFile(file_location, &total_bytes);
 	this->Send("content-length: " + std::to_string(total_bytes) + "\r\n");
