@@ -41,7 +41,15 @@ Socket::Socket(std::pair<int, std::string> sock) : info(sock)
 		throw std::runtime_error(strerror(errno));
 }
 
-Socket::Socket(const Socket &other) : socket_fd(dup(other.socket_fd)), addr(other.addr){}
+Socket::Socket(const Socket &other) : socket_fd(dup(other.socket_fd)), addr(other.addr), info(other.info){}
+
+Socket &Socket::operator=(const Socket &other)
+{
+	this->info = other.info;
+	this->socket_fd = dup(other.socket_fd);
+	this->addr = other.addr;
+	return *this;
+}
 
 Socket::~Socket()
 {
