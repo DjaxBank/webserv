@@ -27,11 +27,11 @@ static bool receive_data(int clientfd, RequestParser &parser)
 	return parser.parseClientRequest(request_raw);
 }
 
-Server &find_active_server(int fd, std::vector<Server> &servers)
+Server &find_active_server(int target_fd, std::vector<Server> &servers)
 {
 	for (Server &serv : servers)
 	{
-		if (serv.sock.get_socket_fd() == fd)
+		if (target_fd == serv.sock.client_fd)
 			return serv;
 	}
 	throw std::runtime_error("");
@@ -43,10 +43,12 @@ void handle_client(std::vector<Server> &servers, fd_set *socket_fds)
 
 	for (Server &serv : servers)
 	{
+		serv.sock.client_fd = -1;
 		if (FD_ISSET(serv.sock.get_socket_fd(), socket_fds))
 		{
 			socklen_t addr_len = sizeof(struct sockaddr_in);
-			client_fds.push_back(accept(serv.sock.get_socket_fd(), reinterpret_cast <sockaddr *>(&serv.sock.get_addr()), &addr_len));
+			serv.sock.client_fd = accept(serv.sock.get_socket_fd(), reinterpret_cast <sockaddr *>(&serv.sock.get_addr()), &addr_len);
+			client_fds.push_back(serv.sock.client_fd);
 		}
 	}
 	for (const int fd : client_fds)
