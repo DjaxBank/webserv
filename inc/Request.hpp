@@ -25,7 +25,9 @@ class Request
 {
 	private:
 		HttpMethod m_method;
-		std::string m_target;
+		std::string m_raw_uri;
+		std::string m_normalized_path;
+		std::string m_query;
 		HttpVersion m_version;
 		std::map<std::string, std::string> m_headers;
 		std::vector<uint8_t> m_body;
@@ -39,7 +41,8 @@ class Request
 		~Request();
 
 		const HttpMethod& getMethod() const;
-		const std::string& getTarget() const;
+		const std::string& getRawUri() const;
+		const std::string& getPath() const;
 		const HttpVersion& getVersion() const;
 		const std::map<std::string, std::string>& getHeaders() const;
 		const std::vector<uint8_t>& getBody() const;
@@ -47,7 +50,8 @@ class Request
 		size_t getContentLen() const;
 
 		void setMethod(const HttpMethod& method);
-		void setTarget(const std::string& target);
+		void setRawUri(const std::string& raw_uri);
+		void setPath(const std::string& path);
 		void setVersion(const HttpVersion& version);
 		void setHeaders(const std::map<std::string, std::string>& headers);
 		void setChunked(bool chunked);
