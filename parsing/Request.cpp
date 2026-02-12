@@ -53,6 +53,11 @@ const std::string& Request::getRawUri() const
 	return(this->m_raw_uri);
 }
 
+const std::string& Request::getQuery() const
+{
+	return(this->m_query);
+}
+
 const std::string& Request::getPath() const
 {
 	return(this->m_normalized_path);
@@ -89,6 +94,11 @@ void Request::setMethod(const HttpMethod& method)
 void Request::setRawUri(const std::string& raw_uri)
 {
 	m_raw_uri = raw_uri;
+}
+
+void Request::setQuery(const std::string& query)
+{
+	m_query = query;
 }
 
 void Request::setPath(const std::string& path)

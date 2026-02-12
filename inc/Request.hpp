@@ -42,6 +42,7 @@ class Request
 
 		const HttpMethod& getMethod() const;
 		const std::string& getRawUri() const;
+		const std::string& getQuery() const;
 		const std::string& getPath() const;
 		const HttpVersion& getVersion() const;
 		const std::map<std::string, std::string>& getHeaders() const;
@@ -51,6 +52,7 @@ class Request
 
 		void setMethod(const HttpMethod& method);
 		void setRawUri(const std::string& raw_uri);
+		void setQuery(const std::string& query);
 		void setPath(const std::string& path);
 		void setVersion(const HttpVersion& version);
 		void setHeaders(const std::map<std::string, std::string>& headers);
