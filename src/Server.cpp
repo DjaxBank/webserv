@@ -135,7 +135,7 @@ Server::Server(std::ifstream &fstream)
 		}
 		if (line.find('}') != line.npos)
 			closed = true;
-		if (!valid_option && !line.empty() && line.find('{') != line.npos && line.find('}') != line.npos)
+		if (!valid_option && !line.empty() && (line.find('{') == line.npos && line.find('}') == line.npos))
 			throw std::runtime_error("unknown directive at line " + std::to_string(linec) + ": " + line);
 	}
 }
