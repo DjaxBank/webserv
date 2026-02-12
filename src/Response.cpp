@@ -81,7 +81,7 @@ std::string Response::ExtractFile(std::string file_path, size_t *total_bytes)
 void Response::GET()
 {
 	if (find_contentype())
-	this->Send("Content-Type: " + content_type + "\r\n");
+		this->Send("Content-Type: " + content_type + "\r\n");
 	size_t total_bytes;
 	body = ExtractFile(file_location, &total_bytes);
 	this->Send("content-length: " + std::to_string(total_bytes) + "\r\n");

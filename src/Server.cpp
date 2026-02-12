@@ -89,6 +89,7 @@ void Server::ImportRoute(std::ifstream &fstream, size_t &linec)
 Server::Server(std::ifstream &fstream)
 {
 	size_t				linec = 0;
+	bool				open, closed = false;
 	const std::string	server_options[] {
 		"listen =",
 		"route",
@@ -103,17 +104,22 @@ Server::Server(std::ifstream &fstream)
 		&this->NotFound,
 		&this->MaxRequestBodySize
 	};
-	while (fstream.is_open() && !fstream.eof())
+
+	while (fstream.is_open() && !fstream.eof() && !closed)
 	{
 		std::string line;
 		bool 		valid_option = false;
 		std::getline(fstream, line);
 		linec++;
+		if (line.find('{') != line.npos)
+			open = true;
 		for (size_t i = 0; i < 5 && !line.empty(); i++)
 		{
 			size_t pos = line.find(server_options[i]);
 			if (pos != std::string::npos)
 			{
+				if (!open)
+					throw std::runtime_error("unexpected directive at line " + std::to_string(linec) + ": " + line);
 				valid_option = true;
 				std::string value = line.substr(pos + server_options[i].length());
 				value.erase(value.find_last_not_of(' ') + 1);
@@ -127,7 +133,9 @@ Server::Server(std::ifstream &fstream)
 				break ;
 			}
 		}
-		if (!valid_option && !line.empty())
+		if (line.find('}') != line.npos)
+			closed = true;
+		if (!valid_option && !line.empty() && line.find('{') != line.npos && line.find('}') != line.npos)
 			throw std::runtime_error("unknown directive at line " + std::to_string(linec) + ": " + line);
 	}
 }
