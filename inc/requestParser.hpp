@@ -99,7 +99,8 @@ class RequestParser
 		// normalize funcs
 		bool normalizeURI(std::string& parsed_uri);
 		bool rejectNullBytes(std::string& parsed_uri);
-		bool decodeHexBytes(std::string& parsed_uri);
+		bool validateHexBytes(std::string& parsed_uri);
+		char decodeByte(char c1, char c2);
 };
 
 #endif

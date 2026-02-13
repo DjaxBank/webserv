@@ -115,28 +115,62 @@ bool RequestParser::rejectNullBytes(std::string& parsed_uri)
 	return true;
 }
 
-bool RequestParser::decodeHexBytes(std::string& parsed_uri)
+static char hexToDecimal(char c)
 {
-	// some looping logic until end of string
-	
-	// find %
-	// is pos + 2 greater than the length of the string? if so error
-	// check if pos + 1 and pos + 2 are digits
-	// extract +2 and put in stoi, storing result.
-	// pull out 3 chars and replace with value, correctly concatinating
+	if (c >= '0' && c <= '9')
+		return (c - '0');
+	else
+		return ((c - 'A') + 10);
+}
+
+char RequestParser::decodeByte(char c1, char c2)
+{
+	unsigned char decoded_char = 0;
+	decoded_char += hexToDecimal(c1);
+	decoded_char *= 16;
+	decoded_char += hexToDecimal(c2);
+	return decoded_char;
+}
+
+bool RequestParser::validateHexBytes(std::string& parsed_uri)
+{
+	for (size_t i = 0; i < parsed_uri.length(); i++)
+	{
+		if (parsed_uri[i] == '%')
+		{
+			if (static_cast<size_t>(i+2) > parsed_uri.length())
+			{
+				setErrorAndReturn("malformed request: hexbyte intersects with end of uri", parsed_uri);
+				m_state = ParserState::ERROR;
+				return false;
+			}
+			if (!isxdigit(parsed_uri[i+1]) || !isxdigit(parsed_uri[i+2]))
+			{
+				setErrorAndReturn("malformed request: hexbyte improperly formed", parsed_uri);
+				m_state = ParserState::ERROR;
+				return false;
+			}
+			if (parsed_uri[i+1] < 'A' )
+			parsed_uri.replace(i, 3, 1, decodeByte(parsed_uri[i+1], parsed_uri[i+2]));
+
+		}
+	}
+	return true;
 }
 
 bool RequestParser::normalizeURI(std::string& parsed_uri)
 {
 	if (!rejectNullBytes(parsed_uri))
 		return false;
-	if (!decodeHexBytes(parsed_uri))
+	if (!validateHexBytes(parsed_uri))
+		return false;
+	std::cout << "NORMALIZED STRING: " << parsed_uri << std::endl;
 	return true;
 }
 
 bool RequestParser::parseURI(void)
 {
-	std::string uri = "/example.com:443/products/item?id=123&category=books#details";
+	std::string uri = "/example.com:443/products%3F/item?id=123&category=books#details";
 
 	std::string working_uri(uri);
 	if (!errorOnEmpty(working_uri))
