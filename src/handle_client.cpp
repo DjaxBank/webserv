@@ -6,6 +6,7 @@
 #include <requestParser.hpp>
 #include <iostream>
 #include <unistd.h>
+#include <algorithm>
 #include "Response.hpp"
 
 static bool receive_data(int clientfd, RequestParser &parser)
@@ -39,7 +40,21 @@ Server &find_active_server(int target_fd, std::vector<Server> &servers)
 
 Route_rule &find_correct_route(Server &serv, RequestParser &parser)
 {
-	return serv.routes[0];
+	std::vector<std::string> valid_routes;
+	std::string uri = parser.getTarget();
+	
+	for (Route_rule &cur : serv.routes)
+	{
+		if (uri.find(cur.route) == 0)
+			valid_routes.push_back(cur.route);
+	}
+	auto longest = std::max_element(valid_routes.begin(), valid_routes.end());
+	for (Route_rule &cur : serv.routes)
+	{
+		if (*longest == cur.route)
+			return cur;
+	}
+	throw std::runtime_error("");
 }
 
 void handle_client(std::vector<Server> &servers, fd_set *socket_fds)
@@ -60,8 +75,9 @@ void handle_client(std::vector<Server> &servers, fd_set *socket_fds)
 	{
 		Server &config = find_active_server(fd, servers);
 		RequestParser		parser;
+		bool parser_success = receive_data(fd, parser);
 		Route_rule			&route = find_correct_route(config, parser);
-		if (!receive_data(fd, parser))
+		if (!parser_success)
 		{
 			Response	response(config, route, parser, fd, "400 Bad Request");
 			response.Reply();
