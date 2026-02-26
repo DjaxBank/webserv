@@ -43,6 +43,8 @@ Route_rule &find_correct_route(Server &serv, RequestParser &parser)
 	std::vector<std::string> valid_routes;
 	std::string uri = parser.getTarget();
 	
+	if (uri.empty())
+		throw std::runtime_error("couldn't handle request");
 	for (Route_rule &cur : serv.routes)
 	{
 		if (uri.find(cur.route) == 0)
@@ -71,28 +73,36 @@ void handle_client(std::vector<Server> &servers, fd_set *socket_fds)
 			client_fds.push_back(serv.sock.client_fd);
 		}
 	}
-	for (const int fd : client_fds)
+	try
 	{
-		Server &config = find_active_server(fd, servers);
-		RequestParser		parser;
-		bool parser_success = receive_data(fd, parser);
-		Route_rule			&route = find_correct_route(config, parser);
-		if (!parser_success)
+		for (const int fd : client_fds)
 		{
-			Response	response(config, route, parser, fd, "400 Bad Request");
-			response.Reply();
-		}
-		else if (!route.redirection.empty())
-		{
-			Response	response(config, route, parser, fd, "301 Moved permanently");
-			response.Reply();
-		}
-		else
-		{
-			Response	response(config, route, parser, fd);
-			response.Reply();
+			Server &config = find_active_server(fd, servers);
+			RequestParser		parser;
+			bool parser_success = receive_data(fd, parser);
+			Route_rule			&route = find_correct_route(config, parser);
+			if (!parser_success)
+			{
+				Response	response(config, route, parser, fd, "400 Bad Request");
+				response.Reply();
+			}
+			else if (!route.redirection.empty())
+			{
+				Response	response(config, route, parser, fd, "301 Moved permanently");
+				response.Reply();
+			}
+			else
+			{
+				Response	response(config, route, parser, fd);
+				response.Reply();
+			}
 		}
 	}
+	catch(const std::exception& e)
+	{
+		std::cerr << '\n' << e.what() << '\n';
+	}
+	
 	for (const int fd : client_fds)
 		close(fd);
 }

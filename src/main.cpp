@@ -47,7 +47,16 @@ static void server_loop(std::vector<Server> servers)
 		timeval timeout{3, 0};
 		reset_sockets(servers, socket_fds, max_fd);
 		if (select(max_fd + 1, &socket_fds, NULL, NULL, &timeout) > 0)
-			handle_client(servers, &socket_fds);
+		{
+			try
+			{
+				handle_client(servers, &socket_fds);
+			}
+			catch(const std::exception& e)
+			{
+				std::cerr << e.what() << '\n';
+			}
+		}
 	}
 }
 

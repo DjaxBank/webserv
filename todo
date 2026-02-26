@@ -1,4 +1,3 @@
-redirections
 cgi
 Enabling or disabling directory listing.
 Default file to serve when the requested resource is a directory.

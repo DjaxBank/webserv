@@ -7,6 +7,7 @@ class Response
 	private:
 		const int			fd;
 		const RequestParser	&parser;
+		const Route_rule	&route;
 		std::string			status;
 		HttpMethod			method;
 		std::string			Date;
