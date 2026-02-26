@@ -5,7 +5,7 @@
 #include <fstream>
 #include <iostream>
 #include <sys/socket.h>
-#include <sys/stat.h>
+#include <filesystem>
 
 Response::Response(const Server &config, const Route_rule &route, const RequestParser &parser, const int fd, std::string status) 
 	: fd(fd), parser(parser), route(route),  status(status), method(parser.getMethod()), Date(get_timestr()), Forbiddenpage(config.Forbidden), NotFoundPage(config.NotFound), file_location(route.root + parser.getTarget()), redirect(route.redirection) {}
@@ -13,14 +13,28 @@ Response::Response(const Server &config, const Route_rule &route, const RequestP
 Response::Response(const Server &config, const Route_rule &route, const RequestParser &parser, const int fd) 
 	: fd(fd), parser(parser), route(route), method(parser.getMethod()), Date(get_timestr()), Forbiddenpage(config.Forbidden), NotFoundPage(config.NotFound), file_location(route.root + parser.getTarget())
 {
-	if (access(file_location.c_str(), F_OK) == -1)
-		status = "404 Not Found";
-	else if (access(file_location.c_str(), R_OK) == -1)
-		status = "403 Forbidden";
+	std::error_code ec;
+	if (std::filesystem::exists(file_location, ec))
+	{
+		if (ec)
+		{
+			if (ec.value() == EACCES)
+				status = "403 Forbidden";
+			else
+				status = "500 Internal Server Error";
+		}
+		else
+		{
+			std::ifstream test(file_location);
+			if (!test.is_open())
+				status = "403 Forbidden";
+			else
+				status = "200 OK";
+		}
+	}
 	else
-		status = "200 OK";
+		status = "404 Not Found";
 }
-
 
 	std::string Response::get_timestr()
 {
@@ -52,38 +66,48 @@ bool Response::find_contentype()
 	return false;
 }
 
-
 void Response::Send(std::string data)
 {
 	send(fd, data.c_str(), data.length(), MSG_NOSIGNAL);
 }
 
-std::string Response::ExtractFile(std::string file_path, size_t *total_bytes)
+void Response::ServeDirectory(std::string &path)
 {
-	struct stat st;
+	for (auto &file : std::filesystem::directory_iterator(path))
+	{ 
+		if (file.path() == path + "index.html")
+		{
+			path = file.path();
+			return;
+		}
+	}
+}
 
-	stat(parser.getTarget().c_str(), &st);
-	if (S_ISDIR(st.st_mode))
+void Response::ExtractFile(std::string file_path, size_t *total_bytes)
+{
+
+	if (std::filesystem::is_directory(file_path))
 	{
-		if (!route.default_dir_file.empty())
+		if (route.directorylisting)
+			ServeDirectory(file_path);
+		else if (!route.default_dir_file.empty())
 			file_path = route.default_dir_file;
 	}
-	std::string body;
-	std::ifstream file(file_path);
-	if (total_bytes)
-		*total_bytes = 0;
-	while (true)
+	if (body.empty())
 	{
-		char buff[1024];
-		file.read(buff, sizeof(buff));
-		size_t bytes_read = file.gcount();
-		if (bytes_read == 0)
-			break;
-		if (total_bytes)
-			*total_bytes += bytes_read;
-		body.append(buff, bytes_read);
+		std::ifstream file(file_path);
+		while (true)
+		{
+			char buff[1024];
+			file.read(buff, sizeof(buff));
+			size_t bytes_read = file.gcount();
+			if (bytes_read == 0)
+				break;
+			body.append(buff, bytes_read);
+		}
 	}
-	return body;
+	if (total_bytes)
+		*total_bytes = body.length();
 }
 
 void Response::GET()
@@ -91,7 +115,7 @@ void Response::GET()
 	if (find_contentype())
 		this->Send("Content-Type: " + content_type + "\r\n");
 	size_t total_bytes;
-	body = ExtractFile(file_location, &total_bytes);
+	ExtractFile(file_location, &total_bytes);
 	this->Send("content-length: " + std::to_string(total_bytes) + "\r\n");
 }
 
@@ -115,9 +139,9 @@ void Response::Reply()
 	if (status != "200 OK")
 	{
 		if (status == "403 Forbidden")
-			body = ExtractFile(Forbiddenpage, nullptr);
+			ExtractFile(Forbiddenpage, nullptr);
 		else if (status == "404 Not Found")
-			body = ExtractFile(NotFoundPage, nullptr);
+			ExtractFile(NotFoundPage, nullptr);
 		else if (status == "301 Moved permanently")
 			this->Send("Location: " + redirect + "\r\n");
 	}
