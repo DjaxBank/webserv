@@ -5,12 +5,13 @@
 #include <fstream>
 #include <iostream>
 #include <sys/socket.h>
+#include <sys/stat.h>
 
 Response::Response(const Server &config, const Route_rule &route, const RequestParser &parser, const int fd, std::string status) 
-	: fd(fd), parser(parser), status(status), method(parser.getMethod()), Date(get_timestr()), Forbiddenpage(config.Forbidden), NotFoundPage(config.NotFound), file_location(route.root + parser.getTarget()), redirect(route.redirection) {}
+	: fd(fd), parser(parser), route(route),  status(status), method(parser.getMethod()), Date(get_timestr()), Forbiddenpage(config.Forbidden), NotFoundPage(config.NotFound), file_location(route.root + parser.getTarget()), redirect(route.redirection) {}
 
 Response::Response(const Server &config, const Route_rule &route, const RequestParser &parser, const int fd) 
-	: fd(fd), parser(parser), method(parser.getMethod()), Date(get_timestr()), Forbiddenpage(config.Forbidden), NotFoundPage(config.NotFound), file_location(route.root + parser.getTarget())
+	: fd(fd), parser(parser), route(route), method(parser.getMethod()), Date(get_timestr()), Forbiddenpage(config.Forbidden), NotFoundPage(config.NotFound), file_location(route.root + parser.getTarget())
 {
 	if (access(file_location.c_str(), F_OK) == -1)
 		status = "404 Not Found";
@@ -57,9 +58,16 @@ void Response::Send(std::string data)
 	send(fd, data.c_str(), data.length(), MSG_NOSIGNAL);
 }
 
-
 std::string Response::ExtractFile(std::string file_path, size_t *total_bytes)
-{	
+{
+	struct stat st;
+
+	stat(parser.getTarget().c_str(), &st);
+	if (S_ISDIR(st.st_mode))
+	{
+		if (!route.default_dir_file.empty())
+			file_path = route.default_dir_file;
+	}
 	std::string body;
 	std::ifstream file(file_path);
 	if (total_bytes)
