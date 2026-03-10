@@ -18,7 +18,8 @@ class Response
 		std::string			file_location;
 		std::string			redirect;
 		std::string			body;
-		std::string 		ExtractFile(std::string file_path, size_t *total_bytes);
+		void 				ServeDirectory(std::string &path);
+		void				ExtractFile(std::string file_path, size_t *total_bytes);
 		void 				GET();
 		void 				POST();
 		void 				DELETE();
