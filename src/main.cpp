@@ -44,7 +44,7 @@ static void server_loop(std::vector<Server> servers)
 	std::cout << '\n';
 	while (server_running)
 	{
-		timeval timeout{5, 0};
+		timeval timeout{3, 0};
 		reset_sockets(servers, socket_fds, max_fd);
 		if (select(max_fd + 1, &socket_fds, NULL, NULL, &timeout) > 0)
 		{
