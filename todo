@@ -1,3 +1,3 @@
+keep connections alive
 cgi
-Enabling or disabling directory listing.
 uploading files from the clients to the server is authorized, and storage location is provided.

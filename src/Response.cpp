@@ -73,14 +73,21 @@ void Response::Send(std::string data)
 
 void Response::ServeDirectory(std::string &path)
 {
+	body = "<!DOCTYPE html>\n<html lang= \"en\">\n\t<head>\n\t\t<meta charset=\"UTF-8\" />\n\t\t<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" />\n";
+
 	for (auto &file : std::filesystem::directory_iterator(path))
-	{ 
-		if (file.path() == path + "index.html")
+	{
+		std::string entry = file.path();
+		if (entry == path + "index.html")
 		{
 			path = file.path();
+			body.clear();
 			return;
 		}
+		entry = entry.substr(path.length());
+		body += "<a href =\"/" + entry + "\"" + "\t<p>" + entry + "</p>\n";
 	}
+	body += "</html>";
 }
 
 void Response::ExtractFile(std::string file_path, size_t *total_bytes)
