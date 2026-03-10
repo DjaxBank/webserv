@@ -1,3 +1,6 @@
 keep connections alive
 cgi
+work on set_interface
+harden route finder
+harden config parser
 uploading files from the clients to the server is authorized, and storage location is provided.
