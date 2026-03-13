@@ -47,7 +47,7 @@ Route_rule &find_correct_route(Server &serv, RequestParser &parser)
 		throw std::runtime_error("couldn't handle request");
 	for (Route_rule &cur : serv.routes)
 	{
-		if (uri.find(cur.route) == 0)
+		if (uri == cur.route || uri.find(cur.route + "/") == 0 || cur.route == "/")
 			valid_routes.push_back(cur.route);
 	}
 	auto longest = std::max_element(valid_routes.begin(), valid_routes.end());
