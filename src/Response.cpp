@@ -128,7 +128,12 @@ void Response::GET()
 
 void Response::POST()
 {
-	
+	std::string check = parser.getHeader("Content-Type");
+	if (check.find("multipart/form-data") == 0)
+	{
+		auto upload = parser.getBody();
+		status = "201 Created";
+	}
 }
 
 void Response::DELETE()
@@ -136,39 +141,38 @@ void Response::DELETE()
 	
 }
 
-
 void Response::Reply()
 {
-	std::cout << status << '\n';
-	this->Send("HTTP/1.1 " + status + "\r\n");
-	this->Send("Date: " + Date + "\r\n");
-	this->Send("Connection: close\r\n");
 	if (status != "200 OK")
 	{
 		if (status == "403 Forbidden")
 			ExtractFile(Forbiddenpage, nullptr);
 		else if (status == "404 Not Found")
 			ExtractFile(NotFoundPage, nullptr);
-		else if (status == "301 Moved permanently")
-			this->Send("Location: " + redirect + "\r\n");
 	}
 	else
 	{
 		switch (method)
 		{
-			case (HttpMethod::GET):
-				this->GET();
-				break;
-			case (HttpMethod::POST):
-				this->POST();
-				break;
-			case (HttpMethod::DELETE):
-				this->DELETE();
-				break;
-			default:
-				break;
+		case (HttpMethod::GET):
+			this->GET();
+			break;
+		case (HttpMethod::POST):
+			this->POST();
+			break;
+		case (HttpMethod::DELETE):
+			this->DELETE();
+			break;
+		default:
+			break;
 		}
 	}
+	std::cout << status << '\n';
+	this->Send("HTTP/1.1 " + status + "\r\n");
+	this->Send("Date: " + Date + "\r\n");
+	if (status == "301 Moved permanently")
+		this->Send("Location: " + redirect + "\r\n");
+	this->Send("Connection: close\r\n");
 	this->Send("\r\n");
 	if (!body.empty())
 		this->Send(body);
