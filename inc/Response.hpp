@@ -14,12 +14,12 @@ class Response
 		std::string			Forbiddenpage;
 		std::string			NotFoundPage;
 		std::string			content_type;
-		std::string			content_length;
+		size_t				total_bytes = 0;
 		std::string			file_location;
 		std::string			redirect;
 		std::string			body;
 		void 				ServeDirectory(std::string &path);
-		void				ExtractFile(std::string file_path, size_t *total_bytes);
+		void				ExtractFile(std::string file_path);
 		void 				GET();
 		void 				POST();
 		void 				DELETE();

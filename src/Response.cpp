@@ -88,9 +88,10 @@ void Response::ServeDirectory(std::string &path)
 		body += "<a href =\"/" + entry + "\"" + "\t<p>" + entry + "</p>\n";
 	}
 	body += "</html>";
+	content_type = "text/html";
 }
 
-void Response::ExtractFile(std::string file_path, size_t *total_bytes)
+void Response::ExtractFile(std::string file_path)
 {
 
 	if (std::filesystem::is_directory(file_path))
@@ -113,17 +114,13 @@ void Response::ExtractFile(std::string file_path, size_t *total_bytes)
 			body.append(buff, bytes_read);
 		}
 	}
-	if (total_bytes)
-		*total_bytes = body.length();
+		total_bytes = body.length();
 }
 
 void Response::GET()
 {
-	if (find_contentype())
-		this->Send("Content-Type: " + content_type + "\r\n");
-	size_t total_bytes;
-	ExtractFile(file_location, &total_bytes);
-	this->Send("content-length: " + std::to_string(total_bytes) + "\r\n");
+	ExtractFile(file_location);
+	find_contentype();
 }
 
 void Response::POST()
@@ -131,7 +128,8 @@ void Response::POST()
 	std::string check = parser.getHeader("Content-Type");
 	if (check.find("multipart/form-data") == 0)
 	{
-		auto upload = parser.getBody();
+		auto upload_raw = parser.getBody();
+		std::string uploaded_file;
 		status = "201 Created";
 	}
 }
@@ -146,25 +144,25 @@ void Response::Reply()
 	if (status != "200 OK")
 	{
 		if (status == "403 Forbidden")
-			ExtractFile(Forbiddenpage, nullptr);
+		ExtractFile(Forbiddenpage);
 		else if (status == "404 Not Found")
-			ExtractFile(NotFoundPage, nullptr);
+		ExtractFile(NotFoundPage);
 	}
 	else
 	{
 		switch (method)
 		{
-		case (HttpMethod::GET):
+			case (HttpMethod::GET):
 			this->GET();
 			break;
-		case (HttpMethod::POST):
+			case (HttpMethod::POST):
 			this->POST();
 			break;
-		case (HttpMethod::DELETE):
+			case (HttpMethod::DELETE):
 			this->DELETE();
 			break;
-		default:
-			break;
+			default:
+				break;
 		}
 	}
 	std::cout << status << '\n';
@@ -172,6 +170,10 @@ void Response::Reply()
 	this->Send("Date: " + Date + "\r\n");
 	if (status == "301 Moved permanently")
 		this->Send("Location: " + redirect + "\r\n");
+	if(!content_type.empty())
+		this->Send("Content-Type: " + content_type + "\r\n");
+	if (total_bytes > 0)
+		this->Send("content-length: " + std::to_string(total_bytes) + "\r\n");
 	this->Send("Connection: close\r\n");
 	this->Send("\r\n");
 	if (!body.empty())
