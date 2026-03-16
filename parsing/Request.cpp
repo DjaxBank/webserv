@@ -16,11 +16,11 @@ static std::string toLower(const std::string& str)
 	return lower;
 }
 
-Request::Request() : m_method(), m_target(), m_version(), m_headers(), m_body(), m_chunked(), m_content_len()
+Request::Request() : m_method(), m_raw_uri(), m_version(), m_headers(), m_body(), m_chunked(), m_content_len()
 {
 };
 
-Request::Request(const Request& other): m_method(other.m_method), m_target(other.m_target), m_version(other.m_version), m_headers(other.m_headers), m_body(other.m_body), m_chunked(other.m_chunked), m_content_len(other.m_content_len)
+Request::Request(const Request& other): m_method(other.m_method), m_raw_uri(other.m_raw_uri), m_version(other.m_version), m_headers(other.m_headers), m_body(other.m_body), m_chunked(other.m_chunked), m_content_len(other.m_content_len)
 {
 };
 
@@ -29,7 +29,7 @@ Request &Request::operator=(const Request& other)
 	if (this != &other)
 	{
 		this->m_method = other.m_method;
-		this->m_target = other.m_target;
+		this->m_raw_uri = other.m_raw_uri;
 		this->m_version = other.m_version;
 		this->m_headers = other.m_headers;
 		this->m_body = other.m_body;
@@ -48,9 +48,19 @@ const HttpMethod& Request::getMethod() const
 	return(this->m_method);
 }
 
-const std::string& Request::getTarget() const
+const std::string& Request::getRawUri() const
 {
-	return(this->m_target);
+	return(this->m_raw_uri);
+}
+
+const std::string& Request::getQuery() const
+{
+	return(this->m_query);
+}
+
+const std::string& Request::getPath() const
+{
+	return(this->m_normalized_path);
 }
 
 const HttpVersion& Request::getVersion() const
@@ -81,9 +91,19 @@ void Request::setMethod(const HttpMethod& method)
 {
 	m_method = method;
 }
-void Request::setTarget(const std::string& path)
+void Request::setRawUri(const std::string& raw_uri)
 {
-	m_target = path;
+	m_raw_uri = raw_uri;
+}
+
+void Request::setQuery(const std::string& query)
+{
+	m_query = query;
+}
+
+void Request::setPath(const std::string& path)
+{
+	m_normalized_path = path;
 }
 void Request::setVersion(const HttpVersion& version)
 {
