@@ -137,3 +137,8 @@ void Request::appendBody(const std::string& chunk)
 	m_body.insert(m_body.begin(), chunk.begin(), chunk.end());
 }
 
+std::string Request::getBodyAsString() const
+{
+	return std::string(m_body.begin(), m_body.end());
+}
+
