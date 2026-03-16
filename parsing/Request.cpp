@@ -132,9 +132,10 @@ void Request::addHeader(const std::string& key, const std::string& value)
 	m_headers[toLower(key)] = value;
 }
 
+// changed this to append at end which I assume is what I wanted but I'm not 100% sure. 
 void Request::appendBody(const std::string& chunk)
 {
-	m_body.insert(m_body.begin(), chunk.begin(), chunk.end());
+    m_body.insert(m_body.end(), chunk.begin(), chunk.end());
 }
 
 std::string Request::getBodyAsString() const
