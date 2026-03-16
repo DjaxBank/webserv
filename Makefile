@@ -7,7 +7,8 @@ SRC = parsing/Request.cpp \
 	parsing/requestParserBody.cpp \
 	parsing/requestParserUtils.cpp \
 	parsing/requestURIParsing.cpp \
-	src/main.cpp src/Config.cpp src/Socket.cpp src/handle_client.cpp src/Response.cpp
+	src/main.cpp src/Socket.cpp src/handle_client.cpp src/Response.cpp \
+	src/Server.cpp
 
 OBJS = $(SRC:.cpp=.o)
 DEPENDS = ${OBJS:.o=.d}
