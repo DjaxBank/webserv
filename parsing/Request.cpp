@@ -143,3 +143,8 @@ std::string Request::getBodyAsString() const
 	return std::string(m_body.begin(), m_body.end());
 }
 
+std::string Request::getBodyAsString() const
+{
+	return std::string(m_body.begin(), m_body.end());
+}
+
