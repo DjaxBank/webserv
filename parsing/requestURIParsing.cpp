@@ -165,8 +165,6 @@ bool RequestParser::normalizePath(std::string& parsed_uri)
 	if (input_buffer[0] == '/')
 		output_buffer.insert(0, "/");
 	input_buffer.erase(0, 1);
-	std::cout << "Parsed_URI: " << parsed_uri << std::endl;
-	std::cout << "Input Buffer: " << input_buffer << std::endl;
 	while (!input_buffer.empty())
 	{
 		if (input_buffer.compare(0, 2, "./") == 0)
@@ -186,6 +184,7 @@ bool RequestParser::normalizePath(std::string& parsed_uri)
 				input_buffer.insert(0, "/");
 			}
 		}
+		// else if (input_buffer.compare(0, ))
 		else
 		{
 			size_t segment_end = input_buffer.find('/', 1);

@@ -79,7 +79,9 @@ void handle_client(std::vector<Server> &servers, fd_set *socket_fds)
 		{
 			Server &config = find_active_server(fd, servers);
 			RequestParser		parser;
+			// Sam implement request return here
 			bool parser_success = receive_data(fd, parser);
+			// implement catch for exception here
 			Route_rule			&route = find_correct_route(config, parser);
 			if (!parser_success)
 			{

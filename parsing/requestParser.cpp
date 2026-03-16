@@ -109,6 +109,7 @@ bool RequestParser::fetchData(const std::string& data)
  */
 bool RequestParser::parseClientRequest(const std::string& data)
 {
+    // this needs to return a request object instead of a stupid ass bool
     if (!fetchData(data))
     {
         if (m_state == ParserState::ERROR)
