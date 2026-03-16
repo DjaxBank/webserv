@@ -158,11 +158,71 @@ bool RequestParser::validateHexBytes(std::string& parsed_uri)
 	return true;
 }
 
+bool RequestParser::normalizePath(std::string& parsed_uri)
+{
+	std::string input_buffer = parsed_uri;
+	std::string output_buffer;
+	if (input_buffer[0] == '/')
+		output_buffer.insert(0, "/");
+	input_buffer.erase(0, 1);
+	std::cout << "Parsed_URI: " << parsed_uri << std::endl;
+	std::cout << "Input Buffer: " << input_buffer << std::endl;
+	while (!input_buffer.empty())
+	{
+		if (input_buffer.compare(0, 2, "./") == 0)
+			input_buffer.erase(0, 2);
+		else if (input_buffer.compare(0, 3, "../") == 0)
+			input_buffer.erase(0, 3);
+		else if (input_buffer.compare(0, 3, "/./") == 0)
+		{
+			input_buffer.erase(0, 3);
+			input_buffer.insert(0, "/");
+		}
+		else if (input_buffer.compare(0, 2, "/.") == 0)
+		{
+			if (input_buffer.length() == 2)
+			{
+				input_buffer.erase(0, 2);
+				input_buffer.insert(0, "/");
+			}
+		}
+		else
+		{
+			size_t segment_end = input_buffer.find('/', 1);
+			size_t segment_len;
+			if (segment_end == std::string::npos)
+			{
+				segment_len = input_buffer.length();
+				std::cout << "appending segment: " << input_buffer.substr(0, segment_len) << std::endl;
+				output_buffer += input_buffer.substr(0, segment_len);
+				input_buffer.erase(0, segment_len);
+				std::cout << "Input Buffer: " << input_buffer << std::endl;
+				std::cout << "Output Buffer: " << output_buffer << std::endl;
+			}
+			else
+			{
+				std::cout << "appending segment: " << input_buffer.substr(0, segment_end) << std::endl;
+				output_buffer += input_buffer.substr(0, segment_end);
+				input_buffer.erase(0, segment_end);
+				std::cout << "Input Buffer: " << input_buffer << std::endl;
+				std::cout << "Output Buffer: " << output_buffer << std::endl;
+			}
+		}	
+	}
+	std::cout << "Parsed_URI: " << parsed_uri << std::endl;
+	std::cout << "Input Buffer: " << input_buffer << std::endl;
+	std::cout << "Output Buffer: " << output_buffer << std::endl;
+	parsed_uri = output_buffer;
+	return true;
+}
+
 bool RequestParser::normalizeURI(std::string& parsed_uri)
 {
 	if (!rejectNullBytes(parsed_uri))
 		return false;
 	if (!validateHexBytes(parsed_uri))
+		return false;
+	if (!normalizePath(parsed_uri))
 		return false;
 	std::cout << "NORMALIZED STRING: " << parsed_uri << std::endl;
 	return true;
@@ -170,7 +230,7 @@ bool RequestParser::normalizeURI(std::string& parsed_uri)
 
 bool RequestParser::parseURI(void)
 {
-	std::string uri = "/example.com:443/products%3F/item?id=123&category=books#details";
+	std::string uri = "/./example.com:443/products%3F/item?id=123&category=books#details";
 
 	std::string working_uri(uri);
 	if (!errorOnEmpty(working_uri))

@@ -59,6 +59,7 @@ class RequestParser
 		const HttpVersion& getVersion() const;
 		const std::string getHeader(const std::string& key) const;
 		const std::vector<uint8_t>& getBody() const;
+
 	private:
 		bool fetchData(const std::string& data);
 		void parseRequestLine();
@@ -101,6 +102,7 @@ class RequestParser
 		bool rejectNullBytes(std::string& parsed_uri);
 		bool validateHexBytes(std::string& parsed_uri);
 		char decodeByte(char c1, char c2);
+		bool normalizePath(std::string& parsed_uri);
 };
 
 #endif
