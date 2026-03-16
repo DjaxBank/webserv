@@ -85,13 +85,9 @@ void handle_method(HttpMethod method)
  */
 void RequestParser::setErrorAndReturn(const char* reason, const std::string& line)
 {
-    // std::cerr << "[ParserError] state=" << static_cast<int>(m_state)
-    //           << " reason=\"" << (reason ? reason : "") << "\""
-    //           << " line=\"" << line << "\""
-    //           << " buffer_prefix=\"" << m_buffer.substr(0, 80) << "\""
-    //           << std::endl;
-	(void)line;
-	(void)reason;
+    std::cerr << "[ParserError] state=" << static_cast<int>(m_state)
+              << " reason=\"" << (reason ? reason : "") << "\""
+              << " line=\"" << line << std::endl;
     m_state = ParserState::ERROR;
 }
 
@@ -222,7 +218,7 @@ void RequestParser::debugState(const char* label) const
             << "\n[ParserState] " << (label ? label : "")
             << " \nstate=" << state_tostring(m_state) << "\""
             << " \nmethod=\"" << method_tostring(m_request.getMethod()) << "\""
-            << " \ntarget=\"" << m_request.getTarget() << "\""
+            << " \ntarget=\"" << m_request.getRawUri() << "\""
             << " \nversion=\"" << version_tostring(m_request.getVersion()) << "\""
             << " \nheaders=" << m_request.getHeaders().size() << "\n";
             

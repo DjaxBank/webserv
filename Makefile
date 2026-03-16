@@ -6,7 +6,9 @@ SRC = parsing/Request.cpp \
 	parsing/requestParserHeaders.cpp \
 	parsing/requestParserBody.cpp \
 	parsing/requestParserUtils.cpp \
-	src/main.cpp src/Server.cpp src/Socket.cpp src/handle_client.cpp src/Response.cpp
+	parsing/requestURIParsing.cpp \
+	src/main.cpp src/Config.cpp src/Socket.cpp src/handle_client.cpp src/Response.cpp
+
 OBJS = $(SRC:.cpp=.o)
 DEPENDS = ${OBJS:.o=.d}
 CC = c++
@@ -29,5 +31,17 @@ fclean: clean
 	$(RM) $(NAME)
 
 re: fclean all
+
+debug: build-debug-parser
+
+build-debug-parser: debug_parser
+
+debug_parser: parser_debug.o parsing/requestParser.o parsing/Request.o parsing/requestParserRequestLine.o parsing/requestParserHeaders.o parsing/requestParserBody.o parsing/requestParserUtils.o parsing/requestURIParsing.o
+	$(CC) $(FLAGS) $(CPPFLAGS) $^ -o debug_parser
+
+parser_debug.o: parser_debug.cpp Makefile
+	$(CC) $(FLAGS) $(CPPFLAGS) -c parser_debug.cpp -o parser_debug.o
+
+.PHONY: build-debug-parser debug_parser
 
 -include ${DEPENDS}  
