@@ -61,6 +61,9 @@ class Request
 
 		void addHeader(const std::string& key, const std::string& value);
 		void appendBody(const std::string& chunk);
+
+		// helper functions for djax
+		std::string getBodyAsString() const;
 };
 
 #endif
