@@ -117,7 +117,6 @@ std::optional<Request> RequestParser::parseClientRequest(const std::string& data
         if (m_state == ParserState::ERROR)
             throw HttpParseException(400, "Invalid body");
     }
-
     if (m_state == ParserState::COMPLETE)
         return std::make_optional(m_request);
     else
