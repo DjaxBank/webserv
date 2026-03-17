@@ -30,29 +30,9 @@ ParserState RequestParser::getState() const
     return m_state;
 }
 
-const HttpMethod& RequestParser::getMethod() const
-{
-    return m_request.getMethod();
-}
-
-const std::string& RequestParser::getTarget() const
-{
-    return m_request.getRawUri();
-}
-
-const HttpVersion& RequestParser::getVersion() const
-{
-    return m_request.getVersion();
-}
-
-const std::vector<uint8_t>& RequestParser::getBody() const
-{
-    return m_request.getBody();
-}
-
 /* returns a header as a string based on a key value
     @param key will return the value based on they or "" if key not found*/
-const std::string RequestParser::getHeader(const std::string& key) const
+std::string RequestParser::getHeader(const std::string& key) const
 {
     const auto& headers = m_request.getHeaders();
     // Convert key to lowercase for case-insensitive lookup
@@ -104,40 +84,43 @@ bool RequestParser::fetchData(const std::string& data)
 
 /* Feeds data into the parser and processes based on current state
  * @param data: chunk of HTTP request data
- * @return: false if ERROR state reached, true otherwise
+ * @return: optional Request object if parsing complete, nullopt if need more data, throws exception on error
  * Use: call repeatedly with incoming socket data until parsing completes
  */
-bool RequestParser::parseClientRequest(const std::string& data)
+std::optional<Request> RequestParser::parseClientRequest(const std::string& data)
 {
     // this needs to return a request object instead of a stupid ass bool
     if (!fetchData(data))
     {
         if (m_state == ParserState::ERROR)
-            return false;
+            throw HttpParseException(400, "Error fetching request data");
         else
-            return true;
+            return std::nullopt;
     }
 
     if (m_state == ParserState::REQUEST_LINE)
     {
         parseRequestLine();
         if (m_state == ParserState::ERROR)
-            return false;
+            throw HttpParseException(400, "Invalid request line");
     }
 
     if (m_state == ParserState::HEADERS)
     {
         parseHeaders();
         if (m_state == ParserState::ERROR)
-            return false;
+            throw HttpParseException(400, "Invalid headers");
     }
 
     if (m_state == ParserState::BODY)
     {
         parseBody();
         if (m_state == ParserState::ERROR)
-            return false;
+            throw HttpParseException(400, "Invalid body");
     }
 
-    return true;
+    if (m_state == ParserState::COMPLETE)
+        return std::make_optional(m_request);
+    else
+        return std::nullopt;
 }

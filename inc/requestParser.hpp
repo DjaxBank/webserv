@@ -2,6 +2,8 @@
 #define REQUESTPARSER_HPP
 
 #include <string>
+#include <optional>
+#include <exception>
 #include "Request.hpp"
 
 enum class ParserState
@@ -38,6 +40,19 @@ HttpMethod string_tomethod(const std::string& str);
 // implementation example in requestParser.cpp
 void handle_method(HttpMethod method);
 
+
+class HttpParseException : public std::exception
+{
+	private:
+		int m_status;
+		std::string m_msg;
+	public:
+		HttpParseException(int status, const std::string& msg);
+		int statusCode() const noexcept;
+		const char* what() const noexcept override;
+};
+
+
 class RequestParser
 {
 	private:
@@ -51,16 +66,11 @@ class RequestParser
 		RequestParser& operator=(const RequestParser& other);
 		~RequestParser();
 		ParserState getState() const;
-		bool parseClientRequest(const std::string& data);
+		std::optional<Request> parseClientRequest(const std::string& data);
 		void debugState(const char* label = "DEBUG") const;
-	
-		const HttpMethod& getMethod() const;
-		const std::string& getTarget() const;
-		const HttpVersion& getVersion() const;
-		const std::string getHeader(const std::string& key) const;
-		const std::vector<uint8_t>& getBody() const;
 
 	private:
+		std::string getHeader(const std::string& key) const;
 		bool fetchData(const std::string& data);
 		void parseRequestLine();
 		void parseHeaders();

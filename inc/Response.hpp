@@ -1,12 +1,11 @@
 #include "Request.hpp"
-#include "requestParser.hpp"
 #include "Server.hpp"
 
 class Response
 {
 	private:
 		const int			fd;
-		const RequestParser	&parser;
+		const Request		&request;
 		const Route_rule	&route;
 		std::string			status;
 		HttpMethod			method;
@@ -28,8 +27,8 @@ class Response
 		void				Send(std::string data);
 							Response();
 	public:
-		Response(const Server &config, const Route_rule &route, const RequestParser &parser, const int fd);
-		Response(const Server &config, const Route_rule &route, const RequestParser &parser, const int fd, std::string status);
+		Response(const Server &config, const Route_rule &route, const Request &request, const int fd);
+		Response(const Server &config, const Route_rule &route, const Request &request, const int fd, std::string status);
 		void	Reply();
 		~Response();
 };
