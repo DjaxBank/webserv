@@ -1,5 +1,4 @@
 #include "Response.hpp"
-#include "requestParser.hpp"
 #include <unistd.h>
 #include <chrono>
 #include <fstream>
@@ -7,11 +6,11 @@
 #include <sys/socket.h>
 #include <filesystem>
 
-Response::Response(const Server &config, const Route_rule &route, const RequestParser &parser, const int fd, std::string status) 
-	: fd(fd), parser(parser), route(route),  status(status), method(parser.getMethod()), Date(get_timestr()), Forbiddenpage(config.Forbidden), NotFoundPage(config.NotFound), file_location(route.root + parser.getTarget()), redirect(route.redirection) {}
+Response::Response(const Server &config, const Route_rule &route, const Request &request, const int fd, std::string status) 
+	: fd(fd), request(request), route(route),  status(status), method(request.getMethod()), Date(get_timestr()), Forbiddenpage(config.Forbidden), NotFoundPage(config.NotFound), file_location(route.root + request.getRawUri()), redirect(route.redirection) {}
 
-Response::Response(const Server &config, const Route_rule &route, const RequestParser &parser, const int fd) 
-	: fd(fd), parser(parser), route(route), method(parser.getMethod()), Date(get_timestr()), Forbiddenpage(config.Forbidden), NotFoundPage(config.NotFound), file_location(route.root + parser.getTarget())
+Response::Response(const Server &config, const Route_rule &route, const Request &request, const int fd) 
+	: fd(fd), request(request), route(route), method(request.getMethod()), Date(get_timestr()), Forbiddenpage(config.Forbidden), NotFoundPage(config.NotFound), file_location(route.root + request.getRawUri())
 {
 	std::error_code ec;
 	if (std::filesystem::exists(file_location, ec))
@@ -125,10 +124,14 @@ void Response::GET()
 
 void Response::POST()
 {
-	std::string check = parser.getHeader("Content-Type");
+	const std::map<std::string, std::string>& headers = request.getHeaders();
+	std::string check;
+	std::map<std::string, std::string>::const_iterator it = headers.find("content-type");
+	if (it != headers.end())
+		check = it->second;
 	if (check.find("multipart/form-data") == 0)
 	{
-		auto upload_raw = parser.getBody();
+		auto upload_raw = request.getBody();
 		std::string uploaded_file;
 		status = "201 Created";
 	}

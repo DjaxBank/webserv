@@ -8,14 +8,14 @@ SRC = parsing/Request.cpp \
 	parsing/requestParserUtils.cpp \
 	parsing/requestURIParsing.cpp \
 	src/main.cpp src/Socket.cpp src/handle_client.cpp src/Response.cpp \
-	src/Server.cpp
+	src/Server.cpp parsing/requestParserException.cpp \
 
 OBJS = $(SRC:.cpp=.o)
 DEPENDS = ${OBJS:.o=.d}
 CC = c++
 INC_DIR = inc
 CPPFLAGS = -I$(INC_DIR)
-FLAGS = -Wall -Wextra -MMD -g -fno-limit-debug-info -fsanitize=address,undefined -std=c++20
+FLAGS = -Wall -Wextra -MMD -std=c++20 -g #-fsanitize=address,undefined 
 
 all: $(NAME)
 
@@ -37,7 +37,7 @@ debug: build-debug-parser
 
 build-debug-parser: debug_parser
 
-debug_parser: parser_debug.o parsing/requestParser.o parsing/Request.o parsing/requestParserRequestLine.o parsing/requestParserHeaders.o parsing/requestParserBody.o parsing/requestParserUtils.o parsing/requestURIParsing.o
+debug_parser: parser_debug.o parsing/requestParser.o parsing/Request.o parsing/requestParserRequestLine.o parsing/requestParserHeaders.o parsing/requestParserBody.o parsing/requestParserUtils.o parsing/requestURIParsing.o parsing/requestParserException.o
 	$(CC) $(FLAGS) $(CPPFLAGS) $^ -o debug_parser
 
 parser_debug.o: parser_debug.cpp Makefile

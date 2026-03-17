@@ -9,23 +9,27 @@
 #include <algorithm>
 #include "Response.hpp"
 
-static bool receive_data(int clientfd, RequestParser &parser)
+static std::optional<Request> receive_data(int clientfd, RequestParser &parser)
 {
 	char	buf[1024];
 
 	ssize_t bytes_read = 1;
 	std::string request_raw;
+	std::optional<Request> parsed_request;
 	while(bytes_read > 0)
 	{
 		bytes_read = recv(clientfd, buf, 1024, 0);
+		if (bytes_read <= 0)
+			break;
 		std::string better_buf(buf, bytes_read);
 		request_raw += better_buf;
-		if (request_raw.find("\r\n"))
+		parsed_request = parser.parseClientRequest(better_buf);
+		if (parsed_request.has_value())
 			break ;
 	}
 	std::string logging = request_raw.substr(0, request_raw.find(" HTTP/"));
 	std::cout << logging << ' ';
-	return parser.parseClientRequest(request_raw);
+	return parsed_request;
 }
 
 Server &find_active_server(int target_fd, std::vector<Server> &servers)
@@ -38,10 +42,10 @@ Server &find_active_server(int target_fd, std::vector<Server> &servers)
 	throw std::runtime_error("");
 }
 
-Route_rule &find_correct_route(Server &serv, RequestParser &parser)
+Route_rule &find_correct_route(Server &serv, const Request &request)
 {
 	std::vector<std::string> valid_routes;
-	std::string uri = parser.getTarget();
+	std::string uri = request.getRawUri();
 	
 	if (uri.empty())
 		throw std::runtime_error("couldn't handle request");
@@ -50,6 +54,8 @@ Route_rule &find_correct_route(Server &serv, RequestParser &parser)
 		if (uri == cur.route || uri.find(cur.route + "/") == 0 || cur.route == "/")
 			valid_routes.push_back(cur.route);
 	}
+	if (valid_routes.empty())
+		throw std::runtime_error("no matching route");
 	auto longest = std::max_element(valid_routes.begin(), valid_routes.end());
 	for (Route_rule &cur : serv.routes)
 	{
@@ -73,36 +79,44 @@ void handle_client(std::vector<Server> &servers, fd_set *socket_fds)
 			client_fds.push_back(serv.sock.client_fd);
 		}
 	}
-	try
+	for (const int fd : client_fds)
 	{
-		for (const int fd : client_fds)
+		Server &config = find_active_server(fd, servers);
+		RequestParser		parser;
+		std::optional<Request> parsed_request;
+		try
 		{
-			Server &config = find_active_server(fd, servers);
-			RequestParser		parser;
-			// Sam implement request return here
-			bool parser_success = receive_data(fd, parser);
-			// implement catch for exception here
-			Route_rule			&route = find_correct_route(config, parser);
-			if (!parser_success)
-			{
-				Response	response(config, route, parser, fd, "400 Bad Request");
-				response.Reply();
-			}
-			else if (!route.redirection.empty())
-			{
-				Response	response(config, route, parser, fd, "301 Moved permanently");
-				response.Reply();
-			}
-			else
-			{
-				Response	response(config, route, parser, fd);
-				response.Reply();
-			}
+			parsed_request = receive_data(fd, parser);
 		}
-	}
-	catch(const std::exception& e)
-	{
-		std::cerr << '\n' << e.what() << '\n';
+		catch (const HttpParseException& e)
+		{
+		    std::cerr << "Parse error on fd " << fd
+		              << " (status " << e.statusCode() << "): "
+		              << e.what() << '\n';
+		    continue;
+		}
+		catch (const std::exception& e)
+		{
+		    std::cerr << "Error handling request on fd " << fd
+		              << ": " << e.what() << '\n';
+		    continue;
+		}
+		if (!parsed_request.has_value())
+		{
+			std::cerr << "Failed to parse request from fd " << fd << ", skipping.\n";
+			continue;
+		}
+		Route_rule			&route = find_correct_route(config, *parsed_request);
+		if (!route.redirection.empty())
+		{
+			Response	response(config, route, *parsed_request, fd, "301 Moved permanently");
+			response.Reply();
+		}
+		else
+		{
+			Response	response(config, route, *parsed_request, fd);
+			response.Reply();
+		}
 	}
 	
 	for (const int fd : client_fds)
