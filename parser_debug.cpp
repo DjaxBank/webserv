@@ -12,8 +12,16 @@ int main() {
 
     for (size_t i = 0; i < sizeof(requests)/sizeof(requests[0]); ++i) {
         std::cout << "\n--- Test Request " << (i+1) << " ---" << std::endl;
-        std::optional<Request> result = parser.parseClientRequest(requests[i]);
-        parser.debugState("Test Request");
+
+        std::optional<Request> result;
+
+        try {
+            result = parser.parseClientRequest(requests[i]);
+            parser.debugState("Test Request");
+        } catch (const std::exception& e) {
+            std::cerr << "Exception: " << e.what() << std::endl;
+        }
+
         if (!result.has_value()) {
             std::cout << "Parser error or incomplete." << std::endl;
         } else {

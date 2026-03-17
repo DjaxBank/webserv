@@ -20,10 +20,7 @@ bool RequestParser::errorOnScheme(const std::string& copy_uri)
 
 bool RequestParser::errorOnAuthority(const std::string& copy_uri)
 {
-	size_t pos;
-
-	pos = copy_uri.find(HTTP_CONSTANT::AUTHORITY_PREFIX);
-	if (pos != std::string::npos)
+	if (copy_uri.compare(0, 2, "//") == 0)
 	{
 		setErrorAndReturn("malformed request: authority detected/incorrect file path", copy_uri);
 		m_state = ParserState::ERROR;
@@ -176,15 +173,41 @@ bool RequestParser::normalizePath(std::string& parsed_uri)
 			input_buffer.erase(0, 3);
 			input_buffer.insert(0, "/");
 		}
+		else if (input_buffer.compare(0, 4, "/../") == 0)
+		{
+			size_t pos = output_buffer.rfind('/');
+			if (pos != std::string::npos)
+			{
+				output_buffer.erase(pos);
+			}
+			input_buffer.erase(0, 4);
+			input_buffer.insert(0, "/");
+		}
+		else if (input_buffer.compare(0, 3, "/..") == 0)
+		{
+			if (input_buffer.length() == 3 || input_buffer[3] == '/')
+			{
+				size_t pos = output_buffer.rfind('/');
+				if (pos != std::string::npos)
+				{
+					output_buffer.erase(pos);
+				}
+				input_buffer.erase(0, 3);
+				input_buffer.insert(0, "/");
+			}
+		}
 		else if (input_buffer.compare(0, 2, "/.") == 0)
 		{
-			if (input_buffer.length() == 2)
+			if (input_buffer.length() == 2 || input_buffer[2] == '/')
 			{
 				input_buffer.erase(0, 2);
 				input_buffer.insert(0, "/");
 			}
 		}
-		// else if (input_buffer.compare(0, ))
+		else if (input_buffer == "." || input_buffer == "..")
+		{
+			input_buffer.erase(0);
+		}
 		else
 		{
 			size_t segment_end = input_buffer.find('/', 1);
@@ -192,31 +215,23 @@ bool RequestParser::normalizePath(std::string& parsed_uri)
 			if (segment_end == std::string::npos)
 			{
 				segment_len = input_buffer.length();
-				std::cout << "appending segment: " << input_buffer.substr(0, segment_len) << std::endl;
 				output_buffer += input_buffer.substr(0, segment_len);
 				input_buffer.erase(0, segment_len);
-				std::cout << "Input Buffer: " << input_buffer << std::endl;
-				std::cout << "Output Buffer: " << output_buffer << std::endl;
 			}
 			else
 			{
-				std::cout << "appending segment: " << input_buffer.substr(0, segment_end) << std::endl;
 				output_buffer += input_buffer.substr(0, segment_end);
 				input_buffer.erase(0, segment_end);
-				std::cout << "Input Buffer: " << input_buffer << std::endl;
-				std::cout << "Output Buffer: " << output_buffer << std::endl;
 			}
 		}	
 	}
-	std::cout << "Parsed_URI: " << parsed_uri << std::endl;
-	std::cout << "Input Buffer: " << input_buffer << std::endl;
-	std::cout << "Output Buffer: " << output_buffer << std::endl;
 	parsed_uri = output_buffer;
 	return true;
 }
 
 bool RequestParser::normalizeURI(std::string& parsed_uri)
 {
+	
 	if (!rejectNullBytes(parsed_uri))
 		return false;
 	if (!validateHexBytes(parsed_uri))
@@ -229,7 +244,7 @@ bool RequestParser::normalizeURI(std::string& parsed_uri)
 
 bool RequestParser::parseURI(void)
 {
-	std::string uri = "/./example.com:443/products%3F/item?id=123&category=books#details";
+	std::string uri = "/a//b";
 
 	std::string working_uri(uri);
 	if (!errorOnEmpty(working_uri))
