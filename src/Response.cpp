@@ -131,9 +131,15 @@ void Response::POST()
 		check = it->second;
 	if (check.find("multipart/form-data") == 0)
 	{
-		auto upload_raw = request.getBody();
-		std::string uploaded_file;
-		status = "201 Created";
+		std::string uploaded_file = request.getBodyAsString();
+		std::string filename = uploaded_file.substr(uploaded_file.find("filename=") + 10);
+		filename = filename.substr(0, filename.find('\"'));
+		uploaded_file = uploaded_file.substr(uploaded_file.find("\r\n\r\n") + 4);
+		uploaded_file = uploaded_file.substr(0, uploaded_file.find("\r\n"));
+		std::string serverloc(file_location + "/" + filename);
+		std::ofstream file_on_server(serverloc);
+		file_on_server << uploaded_file;
+		status = "201 Created"; // 413 Content Too Large if it exceeds maxbodysize
 	}
 }
 
