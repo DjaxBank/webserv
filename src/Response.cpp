@@ -131,8 +131,8 @@ void Response::POST()
 		check = it->second;
 	if (check.find("multipart/form-data") == 0)
 	{
-		std::string uploaded_file = request.getBodyAsString();
-		std::string filename = uploaded_file.substr(uploaded_file.find("filename=") + 10);
+		std::string uploaded_file(request.getBodyAsString());
+		std::string filename(uploaded_file.substr(uploaded_file.find("filename=") + 10));
 		filename = filename.substr(0, filename.find('\"'));
 		uploaded_file = uploaded_file.substr(uploaded_file.find("\r\n\r\n") + 4);
 		uploaded_file = uploaded_file.substr(0, uploaded_file.find("\r\n"));
@@ -150,28 +150,40 @@ void Response::DELETE()
 
 void Response::Reply()
 {
-	if (status != "200 OK")
-	{
-		if (status == "403 Forbidden")
-		ExtractFile(Forbiddenpage);
-		else if (status == "404 Not Found")
-		ExtractFile(NotFoundPage);
-	}
+	bool allowed = false;
+	for (HttpMethod cur : route.http_methods)
+		if (cur == method)
+		{
+			allowed = true;
+			break ;
+		}
+	if (!allowed)
+		status = "405 Method Not Allowed";
 	else
 	{
-		switch (method)
+		if (status == "403 Forbidden" || status == "404 Not Found")
 		{
-			case (HttpMethod::GET):
-			this->GET();
-			break;
-			case (HttpMethod::POST):
-			this->POST();
-			break;
-			case (HttpMethod::DELETE):
-			this->DELETE();
-			break;
-			default:
+			if (status == "403 Forbidden")
+				ExtractFile(Forbiddenpage);
+			else if (status == "404 Not Found")
+				ExtractFile(NotFoundPage);
+		}
+		else
+		{
+			switch (method)
+			{
+				case (HttpMethod::GET):
+				this->GET();
 				break;
+				case (HttpMethod::POST):
+				this->POST();
+				break;
+				case (HttpMethod::DELETE):
+				this->DELETE();
+				break;
+				default:
+					break;
+			}
 		}
 	}
 	std::cout << status << '\n';
@@ -181,8 +193,7 @@ void Response::Reply()
 		this->Send("Location: " + redirect + "\r\n");
 	if(!content_type.empty())
 		this->Send("Content-Type: " + content_type + "\r\n");
-	if (total_bytes > 0)
-		this->Send("content-length: " + std::to_string(total_bytes) + "\r\n");
+	this->Send("content-length: " + std::to_string(total_bytes) + "\r\n");
 	this->Send("Connection: close\r\n");
 	this->Send("\r\n");
 	if (!body.empty())
