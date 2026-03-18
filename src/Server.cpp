@@ -60,12 +60,22 @@ void Server::ImportRoute(std::ifstream &fstream, size_t &linec)
 		}
 		else if (str.find("redirection = ") != str.npos)
 			new_route.redirection = str.substr(str.find("redirection =") + 14);
+		else if (str.find("methods = ") != str.npos)
+		{
+			if (str.find("get") != str.npos)
+				new_route.http_methods.push_back(HttpMethod::GET);
+			if (str.find("post") != str.npos)
+				new_route.http_methods.push_back(HttpMethod::POST);
+			if (str.find("delete") != str.npos)
+				new_route.http_methods.push_back(HttpMethod::DELETE);
+		}
 	}
 	std::vector<std::string> missing_options;
 	const std::string	route_options[] {
 		"route",
 		"root",
-		"default"
+		"default",
+		"methods"
 	};
 	std::string			*route_locs[] {
 		&new_route.route,

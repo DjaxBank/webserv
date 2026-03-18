@@ -238,7 +238,7 @@ bool RequestParser::normalizeURI(std::string& parsed_uri)
 		return false;
 	if (!normalizePath(parsed_uri))
 		return false;
-	std::cout << "NORMALIZED STRING: " << parsed_uri << std::endl;
+	// std::cout << "NORMALIZED STRING: " << parsed_uri << std::endl;
 	return true;
 }
 
