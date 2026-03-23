@@ -10,8 +10,9 @@
 Response::Response(const int fd, std::string status) : fd(fd), status(status) {};
  
 Response::Response(const Server *config, const Route_rule *route, const Request *request, const int fd, std::string status) 
-	: fd(fd), request(request), route(route),  status(status), method(request->getMethod()), Date(get_timestr()), Forbiddenpage(config->Forbidden), NotFoundPage(config->NotFound), file_location(route->root + request->getRawUri()), redirect(route->redirection)
+: fd(fd), request(request), route(route),  status(status), method(request->getMethod()), Date(get_timestr()), Forbiddenpage(config->Forbidden), NotFoundPage(config->NotFound), redirect(route->redirection)
 {
+	file_location = route->root + request->getRawUri().substr(route->route.length());
 	if (this->status.empty())
 	{
 		std::error_code ec;
@@ -116,7 +117,6 @@ void Response::ExtractFile(std::string file_path)
 			body.append(buff, bytes_read);
 		}
 	}
-		total_bytes = body.length();
 }
 
 void Response::GET()
@@ -148,31 +148,79 @@ void Response::POST()
 
 void Response::DELETE()
 {
-	
+	std::filesystem::remove(file_location);
 }
 
+
+bool Response::MethodAllowed()
+{
+	bool allowed = false;
+	for (HttpMethod cur : route->http_methods)
+		if (cur == method)
+		{
+			allowed = true;
+			break ;
+		}
+	return allowed;
+}
+void Response::SetErrorPages()
+{
+	if (status == "403 Forbidden")
+	{
+		if (Forbiddenpage.empty())
+		{
+			body = R"HTML(<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+	<title>403 Forbidden</title>
+</head>
+<body>
+	<main class="card">
+		<h1>403</h1>
+		<p>Sorry, you can't access this page.</p>
+	</main>
+</body>
+</html>)HTML";
+		}
+		else
+			ExtractFile(Forbiddenpage);
+	}
+	else if (status == "404 Not Found")
+	{
+		if (NotFoundPage.empty())
+		{
+			body = R"HTML(<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>404 Not Found</title>
+	</head>
+	<body>
+		<main class="card">
+			<h1>404</h1>
+			<p>Sorry, the page you’re looking for doesn’t exist..</p>
+		</main>
+	</body>
+</html>)HTML";
+		}
+		else
+			ExtractFile(NotFoundPage);
+	}
+}
 void Response::Reply()
 {
 	if (status != "400 Bad Request")
 	{
-		bool allowed = false;
-		for (HttpMethod cur : route->http_methods)
-			if (cur == method)
-			{
-				allowed = true;
-				break ;
-			}
-		if (!allowed)
+		if (!MethodAllowed())
 			status = "405 Method Not Allowed";
+			
 		else
 		{
 			if (status == "403 Forbidden" || status == "404 Not Found")
-			{
-				if (status == "403 Forbidden")
-					ExtractFile(Forbiddenpage);
-				else if (status == "404 Not Found")
-					ExtractFile(NotFoundPage);
-			}
+				SetErrorPages();
 			else
 			{
 				switch (method)
@@ -199,7 +247,7 @@ void Response::Reply()
 		this->Send("Location: " + redirect + "\r\n");
 	if(!content_type.empty())
 		this->Send("Content-Type: " + content_type + "\r\n");
-	this->Send("content-length: " + std::to_string(total_bytes) + "\r\n");
+	this->Send("content-length: " + std::to_string(body.length()) + "\r\n");
 	this->Send("Connection: close\r\n");
 	this->Send("\r\n");
 	if (!body.empty())
