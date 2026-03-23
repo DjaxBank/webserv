@@ -6,35 +6,38 @@
 #include <sys/socket.h>
 #include <filesystem>
 
-Response::Response(const Server &config, const Route_rule &route, const Request &request, const int fd, std::string status) 
-	: fd(fd), request(request), route(route),  status(status), method(request.getMethod()), Date(get_timestr()), Forbiddenpage(config.Forbidden), NotFoundPage(config.NotFound), file_location(route.root + request.getRawUri()), redirect(route.redirection) {}
 
-Response::Response(const Server &config, const Route_rule &route, const Request &request, const int fd) 
-	: fd(fd), request(request), route(route), method(request.getMethod()), Date(get_timestr()), Forbiddenpage(config.Forbidden), NotFoundPage(config.NotFound), file_location(route.root + request.getRawUri())
+Response::Response(const int fd, std::string status) : fd(fd), status(status) {};
+ 
+Response::Response(const Server *config, const Route_rule *route, const Request *request, const int fd, std::string status) 
+	: fd(fd), request(request), route(route),  status(status), method(request->getMethod()), Date(get_timestr()), Forbiddenpage(config->Forbidden), NotFoundPage(config->NotFound), file_location(route->root + request->getRawUri()), redirect(route->redirection)
 {
-	std::error_code ec;
-	if (std::filesystem::exists(file_location, ec))
+	if (this->status.empty())
 	{
-		if (ec)
+		std::error_code ec;
+		if (std::filesystem::exists(file_location, ec))
 		{
-			if (ec.value() == EACCES)
-				status = "403 Forbidden";
+			if (ec)
+			{
+				if (ec.value() == EACCES)
+					this->status = "403 Forbidden";
+				else
+					this->status = "500 Internal Server Error";
+			}
 			else
-				status = "500 Internal Server Error";
+			{
+				std::ifstream test(file_location);
+				if (!test.is_open())
+					this->status = "403 Forbidden";
+				else
+					this->status = "200 OK";
+			}
 		}
 		else
-		{
-			std::ifstream test(file_location);
-			if (!test.is_open())
-				status = "403 Forbidden";
-			else
-				status = "200 OK";
-		}
-	}
-	else
-		status = "404 Not Found";
-}
+			this->status = "404 Not Found";
 
+	}
+}
 	std::string Response::get_timestr()
 {
 	char buff[1024];
@@ -95,10 +98,10 @@ void Response::ExtractFile(std::string file_path)
 
 	if (std::filesystem::is_directory(file_path))
 	{
-		if (route.directorylisting)
+		if (route->directorylisting)
 			ServeDirectory(file_path);
-		else if (!route.default_dir_file.empty())
-			file_path = route.default_dir_file;
+		else if (!route->default_dir_file.empty())
+			file_path = route->default_dir_file;
 	}
 	if (body.empty())
 	{
@@ -124,14 +127,14 @@ void Response::GET()
 
 void Response::POST()
 {
-	const std::map<std::string, std::string>& headers = request.getHeaders();
+	const std::map<std::string, std::string>& headers = request->getHeaders();
 	std::string check;
 	std::map<std::string, std::string>::const_iterator it = headers.find("content-type");
 	if (it != headers.end())
 		check = it->second;
 	if (check.find("multipart/form-data") == 0)
 	{
-		std::string uploaded_file(request.getBodyAsString());
+		std::string uploaded_file(request->getBodyAsString());
 		std::string filename(uploaded_file.substr(uploaded_file.find("filename=") + 10));
 		filename = filename.substr(0, filename.find('\"'));
 		uploaded_file = uploaded_file.substr(uploaded_file.find("\r\n\r\n") + 4);
@@ -150,39 +153,42 @@ void Response::DELETE()
 
 void Response::Reply()
 {
-	bool allowed = false;
-	for (HttpMethod cur : route.http_methods)
-		if (cur == method)
-		{
-			allowed = true;
-			break ;
-		}
-	if (!allowed)
-		status = "405 Method Not Allowed";
-	else
+	if (status != "400 Bad Request")
 	{
-		if (status == "403 Forbidden" || status == "404 Not Found")
-		{
-			if (status == "403 Forbidden")
-				ExtractFile(Forbiddenpage);
-			else if (status == "404 Not Found")
-				ExtractFile(NotFoundPage);
-		}
+		bool allowed = false;
+		for (HttpMethod cur : route->http_methods)
+			if (cur == method)
+			{
+				allowed = true;
+				break ;
+			}
+		if (!allowed)
+			status = "405 Method Not Allowed";
 		else
 		{
-			switch (method)
+			if (status == "403 Forbidden" || status == "404 Not Found")
 			{
-				case (HttpMethod::GET):
-				this->GET();
-				break;
-				case (HttpMethod::POST):
-				this->POST();
-				break;
-				case (HttpMethod::DELETE):
-				this->DELETE();
-				break;
-				default:
+				if (status == "403 Forbidden")
+					ExtractFile(Forbiddenpage);
+				else if (status == "404 Not Found")
+					ExtractFile(NotFoundPage);
+			}
+			else
+			{
+				switch (method)
+				{
+					case (HttpMethod::GET):
+					this->GET();
 					break;
+					case (HttpMethod::POST):
+					this->POST();
+					break;
+					case (HttpMethod::DELETE):
+					this->DELETE();
+					break;
+					default:
+						break;
+				}
 			}
 		}
 	}

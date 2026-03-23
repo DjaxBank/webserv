@@ -81,44 +81,48 @@ void handle_client(std::vector<Server> &servers, fd_set *socket_fds)
 	}
 	for (const int fd : client_fds)
 	{
-		Server &config = find_active_server(fd, servers);
-		RequestParser		parser;
-		std::optional<Request> parsed_request;
 		try
 		{
-			parsed_request = receive_data(fd, parser);
-		}
-		catch (const HttpParseException& e)
-		{
-		    std::cerr << "Parse error on fd " << fd
-		              << " (status " << e.statusCode() << "): "
-		              << e.what() << '\n';
-		    continue;
-		}
-		catch (const std::exception& e)
-		{
-		    std::cerr << "Error handling request on fd " << fd
-		              << ": " << e.what() << '\n';
-		    continue;
-		}
-		if (!parsed_request.has_value())
-		{
-			std::cerr << "Failed to parse request from fd " << fd << ", skipping.\n";
-			continue;
-		}
-		Route_rule			&route = find_correct_route(config, *parsed_request);
-		if (!route.redirection.empty())
-		{
-			Response	response(config, route, *parsed_request, fd, "301 Moved permanently");
+			
+			Server &config = find_active_server(fd, servers);
+			RequestParser		parser;
+			std::optional<Request> parsed_request;
+			std::string			status;
+			try
+			{
+				parsed_request = receive_data(fd, parser);
+			}
+			catch (const HttpParseException& e)
+			{
+				std::cerr << "Parse error on fd " << fd
+						<< " (status " << e.statusCode() << "): "
+						<< e.what() << '\n';
+				throw std::runtime_error("");
+
+			}
+			catch (const std::exception& e)
+			{
+				std::cerr << "Error handling request on fd " << fd
+						<< ": " << e.what() << '\n';
+				throw std::runtime_error("");
+			}
+			if (!parsed_request.has_value())
+			{
+				std::cerr << "Failed to parse request from fd " << fd << ", skipping.\n";
+				throw std::runtime_error("");
+			}
+			Route_rule			&route = find_correct_route(config, *parsed_request);
+			if (!route.redirection.empty())
+				status = "301 Moved permanently";
+			Response	response(&config, &route, &parsed_request.value(), fd, status);
 			response.Reply();
 		}
-		else
+		catch(const std::exception& e)
 		{
-			Response	response(config, route, *parsed_request, fd);
-			response.Reply();
+			Response errorresponse(fd, "400 Bad Request");
+			errorresponse.Reply();
 		}
 	}
-	
 	for (const int fd : client_fds)
 		close(fd);
 }
