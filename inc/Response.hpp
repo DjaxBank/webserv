@@ -13,7 +13,6 @@ class Response
 		std::string			Forbiddenpage;
 		std::string			NotFoundPage;
 		std::string			content_type;
-		size_t				total_bytes = 0;
 		std::string			file_location;
 		std::string			redirect;
 		std::string			body;
@@ -26,6 +25,8 @@ class Response
 		bool				find_contentype();
 		void				Send(std::string data);
 							Response();
+		bool				MethodAllowed();
+		void				SetErrorPages();
 	public:
 		Response(const int fd, std::string status);
 		Response(const Server *config, const Route_rule *route, const Request *request, const int fd, std::string status);
