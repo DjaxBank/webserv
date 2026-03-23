@@ -5,8 +5,8 @@ class Response
 {
 	private:
 		const int			fd;
-		const Request		&request;
-		const Route_rule	&route;
+		const Request		*request;
+		const Route_rule	*route;
 		std::string			status;
 		HttpMethod			method;
 		std::string			Date;
@@ -27,8 +27,8 @@ class Response
 		void				Send(std::string data);
 							Response();
 	public:
-		Response(const Server &config, const Route_rule &route, const Request &request, const int fd);
-		Response(const Server &config, const Route_rule &route, const Request &request, const int fd, std::string status);
+		Response(const int fd, std::string status);
+		Response(const Server *config, const Route_rule *route, const Request *request, const int fd, std::string status);
 		void	Reply();
 		~Response();
 };
