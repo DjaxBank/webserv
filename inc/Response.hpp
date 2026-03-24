@@ -7,6 +7,7 @@ class Response
 		const int			fd;
 		const Request		*request;
 		const Route_rule	*route;
+		int		MaxRequestBodySize;
 		std::string			status;
 		HttpMethod			method;
 		std::string			Date;

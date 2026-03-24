@@ -32,7 +32,7 @@ static std::optional<Request> receive_data(int clientfd, RequestParser &parser)
 	return parsed_request;
 }
 
-Server &find_active_server(int target_fd, std::vector<Server> &servers)
+static Server &find_active_server(int target_fd, std::vector<Server> &servers)
 {
 	for (Server &serv : servers)
 	{
@@ -42,7 +42,7 @@ Server &find_active_server(int target_fd, std::vector<Server> &servers)
 	throw std::runtime_error("");
 }
 
-Route_rule &find_correct_route(Server &serv, const Request &request)
+static Route_rule &find_correct_route(Server &serv, const Request &request)
 {
 	std::vector<std::string> valid_routes;
 	std::string uri = request.getRawUri();
