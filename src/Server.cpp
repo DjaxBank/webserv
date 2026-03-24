@@ -114,7 +114,7 @@ Server::Server(std::ifstream &fstream)
 		nullptr, 
 		&this->Forbidden,
 		&this->NotFound,
-		&this->MaxRequestBodySize
+		nullptr
 	};
 
 	while (fstream.is_open() && !fstream.eof() && !closed)
@@ -140,6 +140,8 @@ Server::Server(std::ifstream &fstream)
 					ImportPortPairs(value);
 				else if (i == 1)
 					ImportRoute(fstream, linec);
+				else if (i == 4)
+					MaxRequestBodySize = std::atoi(value.c_str());
 				else
 					*server_locs[i] = value;
 				break ;

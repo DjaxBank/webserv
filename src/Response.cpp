@@ -10,9 +10,9 @@
 Response::Response(const int fd, std::string status) : fd(fd), status(status) {};
  
 Response::Response(const Server *config, const Route_rule *route, const Request *request, const int fd, std::string status) 
-: fd(fd), request(request), route(route),  status(status), method(request->getMethod()), Date(get_timestr()), Forbiddenpage(config->Forbidden), NotFoundPage(config->NotFound), redirect(route->redirection)
+: fd(fd), request(request), route(route), MaxRequestBodySize(config->MaxRequestBodySize), status(status), method(request->getMethod()), Date(get_timestr()), Forbiddenpage(config->Forbidden), NotFoundPage(config->NotFound), redirect(route->redirection)
 {
-	file_location = route->root + request->getRawUri().substr(route->route.length());
+	file_location = route->root + "/" + request->getRawUri().substr(route->route.length());
 	if (this->status.empty())
 	{
 		std::error_code ec;
@@ -77,7 +77,10 @@ void Response::Send(std::string data)
 void Response::ServeDirectory(std::string &path)
 {
 	body = "<!DOCTYPE html>\n<html lang= \"en\">\n\t<head>\n\t\t<meta charset=\"UTF-8\" />\n\t\t<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" />\n";
+	std::string folder;
 
+	if (route->route != "/")
+		folder = route->route.substr(1) + "/";
 	for (auto &file : std::filesystem::directory_iterator(path))
 	{
 		std::string entry = file.path();
@@ -88,7 +91,7 @@ void Response::ServeDirectory(std::string &path)
 			return;
 		}
 		entry = entry.substr(path.length());
-		body += "<a href =\"/" + entry + "\"" + "\t<p>" + entry + "</p>\n";
+		body += "<a href =\"/" + folder + entry + "\"" + "\t<p>" + entry + "</p>\n";
 	}
 	body += "</html>";
 	content_type = "text/html";
@@ -127,23 +130,25 @@ void Response::GET()
 
 void Response::POST()
 {
-	const std::map<std::string, std::string>& headers = request->getHeaders();
-	std::string check;
-	std::map<std::string, std::string>::const_iterator it = headers.find("content-type");
-	if (it != headers.end())
-		check = it->second;
-	if (check.find("multipart/form-data") == 0)
+	const std::map<std::string, std::string> &headers = request->getHeaders();
+
+	if (headers.find("content-type")->second.find("multipart/form-data") == 0)
 	{
-		std::string uploaded_file(request->getBodyAsString());
-		std::string filename(uploaded_file.substr(uploaded_file.find("filename=") + 10));
-		filename = filename.substr(0, filename.find('\"'));
-		uploaded_file = uploaded_file.substr(uploaded_file.find("\r\n\r\n") + 4);
-		uploaded_file = uploaded_file.substr(0, uploaded_file.find("\r\n"));
-		std::string serverloc(file_location + "/" + filename);
-		std::ofstream file_on_server(serverloc);
-		file_on_server << uploaded_file;
-		status = "201 Created"; // 413 Content Too Large if it exceeds maxbodysize
-	}
+		if (std::atoi(headers.find("content-length")->second.c_str()) <= MaxRequestBodySize)
+		{
+			std::string uploaded_file(request->getBodyAsString());
+			std::string filename(uploaded_file.substr(uploaded_file.find("filename=") + 10));
+			filename = filename.substr(0, filename.find('\"'));
+			uploaded_file = uploaded_file.substr(uploaded_file.find("\r\n\r\n") + 4);
+			uploaded_file = uploaded_file.substr(0, uploaded_file.find("\r\n"));
+			std::string serverloc(file_location + "/" + filename);
+			std::ofstream file_on_server(serverloc);
+			file_on_server << uploaded_file;
+			status = "201 Created";
+		}
+		else
+			status = "413 Content Too Large";
+ 	}
 }
 
 void Response::DELETE()
