@@ -136,15 +136,21 @@ Server::Server(std::ifstream &fstream)
 				std::string value = line.substr(pos + server_options[i].length());
 				value.erase(value.find_last_not_of(' ') + 1);
 				value.erase(0, value.find_first_not_of(' '));
-				if (i == 0)
-					ImportPortPairs(value);
-				else if (i == 1)
-					ImportRoute(fstream, linec);
-				else if (i == 4)
-					MaxRequestBodySize = std::atoi(value.c_str());
-				else
-					*server_locs[i] = value;
-				break ;
+				switch (i)
+				{
+					case 0:
+						ImportPortPairs(value);
+						break;
+					case 1:
+						ImportRoute(fstream, linec);
+						break;
+					case 4:
+						MaxRequestBodySize = std::atoi(value.c_str());
+						break;
+					default:
+						*server_locs[i] = value;
+						break;
+				}
 			}
 		}
 		if (line.find('}') != line.npos)
