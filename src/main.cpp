@@ -2,6 +2,7 @@
 #include <vector>
 #include <sys/select.h>
 #include <fstream>
+#include <filesystem>
 #include "Socket.hpp"
 #include "functions.hpp"
 #include "signal.h"
@@ -35,10 +36,11 @@ static void reset_sockets(std::vector<Server> &servers, fd_set &socket_fds, int 
 			max_fd = serv.sock.get_socket_fd();
 }
 
-static void server_loop(std::vector<Server> servers)
+static void server_loop(std::vector<Server> servers, char **envp)
 {
 	fd_set	socket_fds;
 	int		max_fd;
+
 	for (Server &serv : servers)
 		std::cout << "Webserver listening on " << serv.sock.info.second << " interface port " <<  std::to_string(serv.sock.info.first) << '\n';
 	std::cout << '\n';
@@ -50,7 +52,7 @@ static void server_loop(std::vector<Server> servers)
 		{
 			try
 			{
-				handle_client(servers, &socket_fds);
+				handle_client(servers, &socket_fds, envp);
 			}
 			catch(const std::exception& e)
 			{
@@ -77,7 +79,7 @@ static std::vector<Server> importconfigfile(char *configfile)
 	return servers;
 }
 
-int main(int argc, char **argv)
+int main(int argc, char **argv, char **envp)
 {
 	if (argc != 2)
 	{
@@ -87,7 +89,7 @@ int main(int argc, char **argv)
 	signal(SIGINT, signal_handler);
 	try
 	{
-		server_loop(importconfigfile(argv[1]));
+		server_loop(importconfigfile(argv[1]), envp);
 	}
 	catch(const std::exception& e)
 	{

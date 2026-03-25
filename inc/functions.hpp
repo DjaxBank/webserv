@@ -6,5 +6,5 @@
 #include "requestParser.hpp"
 #include "Server.hpp"
 
-void handle_client(std::vector<Server> &config, fd_set *socket_fds);
-void Http_Get(const int fd, const Route_rule &route, const RequestParser &parser);
+void		handle_client(std::vector<Server> &config, fd_set *socket_fds, char **envp);
+void		Http_Get(const int fd, const Route_rule &route, const RequestParser &parser);
