@@ -157,75 +157,31 @@ bool RequestParser::validateHexBytes(std::string& parsed_uri)
 
 bool RequestParser::normalizePath(std::string& parsed_uri)
 {
-	std::string input_buffer = parsed_uri;
-	std::string output_buffer;
-	if (input_buffer[0] == '/')
-		output_buffer.insert(0, "/");
-	input_buffer.erase(0, 1);
-	while (!input_buffer.empty())
+	std::vector<std::string> segments;
+	size_t start = 1;
+
+	for (size_t pos = 1; pos <= parsed_uri.length(); pos++)
 	{
-		if (input_buffer.compare(0, 2, "./") == 0)
-			input_buffer.erase(0, 2);
-		else if (input_buffer.compare(0, 3, "../") == 0)
-			input_buffer.erase(0, 3);
-		else if (input_buffer.compare(0, 3, "/./") == 0)
+		if (pos == parsed_uri.length() || parsed_uri[pos] == '/')
 		{
-			input_buffer.erase(0, 3);
-			input_buffer.insert(0, "/");
-		}
-		else if (input_buffer.compare(0, 4, "/../") == 0)
-		{
-			size_t pos = output_buffer.rfind('/');
-			if (pos != std::string::npos)
+			std::string segment = parsed_uri.substr(start, pos - start);
+			if (segment != "." && segment != ".." && !segment.empty())
+				segments.push_back(segment);
+			if (segment == "..")
 			{
-				output_buffer.erase(pos);
+				if (!segments.empty())
+					segments.pop_back();
 			}
-			input_buffer.erase(0, 4);
-			input_buffer.insert(0, "/");
+			start = pos + 1;
 		}
-		else if (input_buffer.compare(0, 3, "/..") == 0)
-		{
-			if (input_buffer.length() == 3 || input_buffer[3] == '/')
-			{
-				size_t pos = output_buffer.rfind('/');
-				if (pos != std::string::npos)
-				{
-					output_buffer.erase(pos);
-				}
-				input_buffer.erase(0, 3);
-				input_buffer.insert(0, "/");
-			}
-		}
-		else if (input_buffer.compare(0, 2, "/.") == 0)
-		{
-			if (input_buffer.length() == 2 || input_buffer[2] == '/')
-			{
-				input_buffer.erase(0, 2);
-				input_buffer.insert(0, "/");
-			}
-		}
-		else if (input_buffer == "." || input_buffer == "..")
-		{
-			input_buffer.erase(0);
-		}
-		else
-		{
-			size_t segment_end = input_buffer.find('/', 1);
-			size_t segment_len;
-			if (segment_end == std::string::npos)
-			{
-				segment_len = input_buffer.length();
-				output_buffer += input_buffer.substr(0, segment_len);
-				input_buffer.erase(0, segment_len);
-			}
-			else
-			{
-				output_buffer += input_buffer.substr(0, segment_end);
-				input_buffer.erase(0, segment_end);
-			}
-		}	
 	}
-	parsed_uri = output_buffer;
+	parsed_uri = "/";
+	for (size_t i = 0; i < segments.size(); i++)
+	{
+		parsed_uri += segments[i];
+		if (i < segments.size() - 1)
+			parsed_uri += "/";
+	}
 	return true;
 }
 
@@ -243,7 +199,7 @@ bool RequestParser::normalizeURI(std::string& parsed_uri)
 
 bool RequestParser::parseURI(void)
 {
-	std::string uri = "/a//b";
+	std::string uri = "/a/./b";
 
 	std::string working_uri(uri);
 	if (!errorOnEmpty(working_uri))
@@ -263,6 +219,7 @@ bool RequestParser::parseURI(void)
 		return false;
 	if (!normalizeURI(working_uri))
 		return false;
+	
 	return true;
 }
 
