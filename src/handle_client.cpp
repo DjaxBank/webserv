@@ -65,7 +65,7 @@ static Route_rule &find_correct_route(Server &serv, const Request &request)
 	throw std::runtime_error("");
 }
 
-void handle_client(std::vector<Server> &servers, fd_set *socket_fds)
+void handle_client(std::vector<Server> &servers, fd_set *socket_fds, char **envp)
 {
 	std::vector<int>	client_fds;
 
@@ -114,7 +114,7 @@ void handle_client(std::vector<Server> &servers, fd_set *socket_fds)
 			Route_rule			&route = find_correct_route(config, *parsed_request);
 			if (!route.redirection.empty())
 				status = "301 Moved permanently";
-			Response	response(&config, &route, &parsed_request.value(), fd, status);
+			Response	response(&config, &route, &parsed_request.value(), fd, status, envp);
 			response.Reply();
 		}
 		catch(const std::exception& e)

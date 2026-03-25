@@ -5,12 +5,12 @@
 #include <iostream>
 #include <sys/socket.h>
 #include <filesystem>
-
+std::string Cgi(std::string cgi_program, std::vector<std::string> args, char **envp);
 
 Response::Response(const int fd, std::string status) : fd(fd), status(status) {};
- 
-Response::Response(const Server *config, const Route_rule *route, const Request *request, const int fd, std::string status) 
-: fd(fd), request(request), route(route), MaxRequestBodySize(config->MaxRequestBodySize), status(status), method(request->getMethod()), Date(get_timestr()), Forbiddenpage(config->Forbidden), NotFoundPage(config->NotFound), redirect(route->redirection)
+
+Response::Response(const Server *config, const Route_rule *route, const Request *request, const int fd, std::string status, char **envp)
+	: envp(envp), fd(fd), request(request), route(route), MaxRequestBodySize(config->MaxRequestBodySize), status(status), method(request->getMethod()), Date(get_timestr()), Forbiddenpage(config->Forbidden), NotFoundPage(config->NotFound), redirect(route->redirection)
 {
 	file_location = route->root + "/" + request->getRawUri().substr(route->route.length());
 	if (this->status.empty())
@@ -36,10 +36,9 @@ Response::Response(const Server *config, const Route_rule *route, const Request 
 		}
 		else
 			this->status = "404 Not Found";
-
 	}
 }
-	std::string Response::get_timestr()
+std::string Response::get_timestr()
 {
 	char buff[1024];
 	std::time_t time = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
@@ -71,6 +70,7 @@ bool Response::find_contentype()
 
 void Response::Send(std::string data)
 {
+	data += "\r\n";
 	send(fd, data.c_str(), data.length(), MSG_NOSIGNAL);
 }
 
@@ -122,9 +122,22 @@ void Response::ExtractFile(std::string file_path)
 	}
 }
 
+bool Response::is_cgi(std::pair<std::string, std::string> &p_cgi)
+{
+	return false;
+}
+
 void Response::GET()
 {
-	ExtractFile(file_location);
+	std::pair<std::string, std::string> p_cgi;
+
+	if (is_cgi(p_cgi))
+	{
+		std::vector <std::string> args;
+		body = Cgi(p_cgi.second, args, envp);
+	}
+	else
+		ExtractFile(file_location);
 	find_contentype();
 }
 
@@ -148,14 +161,13 @@ void Response::POST()
 		}
 		else
 			status = "413 Content Too Large";
- 	}
+	}
 }
 
 void Response::DELETE()
 {
 	std::filesystem::remove(file_location);
 }
-
 
 bool Response::MethodAllowed()
 {
@@ -164,7 +176,7 @@ bool Response::MethodAllowed()
 		if (cur == method)
 		{
 			allowed = true;
-			break ;
+			break;
 		}
 	return allowed;
 }
@@ -221,7 +233,7 @@ void Response::Reply()
 	{
 		if (!MethodAllowed())
 			status = "405 Method Not Allowed";
-			
+
 		else
 		{
 			if (status == "403 Forbidden" || status == "404 Not Found")
@@ -230,36 +242,35 @@ void Response::Reply()
 			{
 				switch (method)
 				{
-					case (HttpMethod::GET):
+				case (HttpMethod::GET):
 					this->GET();
 					break;
-					case (HttpMethod::POST):
+				case (HttpMethod::POST):
 					this->POST();
 					break;
-					case (HttpMethod::DELETE):
+				case (HttpMethod::DELETE):
 					this->DELETE();
 					break;
-					default:
-						break;
+				default:
+					break;
 				}
 			}
 		}
 	}
 	std::cout << status << '\n';
-	this->Send("HTTP/1.1 " + status + "\r\n");
-	this->Send("Date: " + Date + "\r\n");
+	this->Send("HTTP/1.1 " + status);
+	this->Send("Date: " + Date);
 	if (status == "301 Moved permanently")
-		this->Send("Location: " + redirect + "\r\n");
-	if(!content_type.empty())
-		this->Send("Content-Type: " + content_type + "\r\n");
-	this->Send("content-length: " + std::to_string(body.length()) + "\r\n");
+		this->Send("Location: " + redirect);
+	if (!content_type.empty())
+		this->Send("Content-Type: " + content_type);
+	this->Send("content-length: " + std::to_string(body.length()));
 	this->Send("Connection: close\r\n");
-	this->Send("\r\n");
+	this->Send("");
 	if (!body.empty())
 		this->Send(body);
 }
 
 Response::~Response()
 {
-	
 }
