@@ -29,7 +29,7 @@ class Server
 		Socket												sock;
 		std::string											Forbidden;
 		std::string											NotFound;
-		unsigned int										MaxRequestBodySize;
+		int													MaxRequestBodySize;
 		std::vector<Route_rule>								routes;
 
 		Server(std::ifstream &fstream);
