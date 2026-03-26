@@ -64,6 +64,9 @@ class Request
 
 		// helper functions for djax
 		std::string getBodyAsString() const;
+		
+		//debug
+		std::string printHeaders() const;
 };
 
 #endif

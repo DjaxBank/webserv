@@ -7,7 +7,7 @@ int main() {
 
     // Example HTTP requests to test
     std::string requests[] = {
-    "POST /api/data HTTP/1.1\r\nHost: example.com\r\nContent-Length: 24\r\n\r\n{\"name\":\"John\",\"age\":30}",
+    "POST /api/data/src/.. HTTP/1.1\r\nHost: example.com\r\nContent-Length: 24\r\n\r\n{\"name\":\"John\",\"age\":30}",
 };
 
     for (size_t i = 0; i < sizeof(requests)/sizeof(requests[0]); ++i) {
