@@ -4,19 +4,16 @@
 class Response
 {
 	private:
+		const				Server *config;
 		char				**envp;
 		const int			fd;
 		const Request		*request;
 		const Route_rule	*route;
-		int					MaxRequestBodySize;
 		std::string			status;
 		HttpMethod			method;
 		std::string			Date;
-		std::string			Forbiddenpage;
-		std::string			NotFoundPage;
 		std::string			content_type;
 		std::string			file_location;
-		std::string			redirect;
 		std::string			body;
 		void 				ServeDirectory(std::string &path);
 		void				ExtractFile(std::string file_path);

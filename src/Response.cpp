@@ -10,7 +10,7 @@ std::string Cgi(std::string cgi_program, std::string file, char **envp);
 Response::Response(const int fd, std::string status) : fd(fd), status(status) {};
 
 Response::Response(const Server *config, const Route_rule *route, const Request *request, const int fd, std::string status, char **envp)
-	: envp(envp), fd(fd), request(request), route(route), MaxRequestBodySize(config->MaxRequestBodySize), status(status), method(request->getMethod()), Date(get_timestr()), Forbiddenpage(config->Forbidden), NotFoundPage(config->NotFound), redirect(route->redirection)
+	: config(config), envp(envp), fd(fd), request(request), route(route), status(status), method(request->getMethod()), Date(get_timestr())
 {
 	file_location = route->root + "/" + request->getRawUri().substr(route->route.length());
 	if (this->status.empty())
@@ -159,7 +159,7 @@ void Response::POST()
 
 	if (headers.find("content-type")->second.find("multipart/form-data") == 0)
 	{
-		if (std::atoi(headers.find("content-length")->second.c_str()) <= MaxRequestBodySize)
+		if (std::atoi(headers.find("content-length")->second.c_str()) <= config->MaxRequestBodySize)
 		{
 			std::string uploaded_file(request->getBodyAsString());
 			std::string filename(uploaded_file.substr(uploaded_file.find("filename=") + 10));
@@ -196,7 +196,7 @@ void Response::SetErrorPages()
 {
 	if (status == "403 Forbidden")
 	{
-		if (Forbiddenpage.empty())
+		if (config->Forbidden.empty())
 		{
 			body = R"HTML(<!DOCTYPE html>
 <html lang="en">
@@ -214,11 +214,11 @@ void Response::SetErrorPages()
 </html>)HTML";
 		}
 		else
-			ExtractFile(Forbiddenpage);
+			ExtractFile(config->Forbidden);
 	}
 	else if (status == "404 Not Found")
 	{
-		if (NotFoundPage.empty())
+		if (config->NotFound.empty())
 		{
 			body = R"HTML(<!DOCTYPE html>
 <html lang="en">
@@ -236,7 +236,7 @@ void Response::SetErrorPages()
 </html>)HTML";
 		}
 		else
-			ExtractFile(NotFoundPage);
+			ExtractFile(config->NotFound);
 	}
 }
 void Response::Reply()
@@ -273,7 +273,7 @@ void Response::Reply()
 	this->Send("HTTP/1.1 " + status);
 	this->Send("Date: " + Date);
 	if (status == "301 Moved permanently")
-		this->Send("Location: " + redirect);
+		this->Send("Location: " + route->redirection);
 	if (!content_type.empty())
 		this->Send("Content-Type: " + content_type);
 	std::string length;
