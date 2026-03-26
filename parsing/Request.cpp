@@ -137,10 +137,24 @@ void Request::appendBody(const std::string& chunk)
 {
     m_body.insert(m_body.end(), chunk.begin(), chunk.end());
 }
-
+#include <map>
+#include <iostream>
 std::string Request::getBodyAsString() const
 {
 	return std::string(m_body.begin(), m_body.end());
 }
 
+std::string Request::printHeaders() const
+{
+	std::string headers;
+
+	for (const auto& pair : this->getHeaders())
+	{
+		headers += pair.first;
+		headers += ": ";
+		headers += pair.second;
+		headers += "\n";
+	}
+	return headers;
+}
 
