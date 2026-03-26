@@ -84,10 +84,10 @@ void handle_client(std::vector<Server> &servers, fd_set *socket_fds, char **envp
 		try
 		{
 			
-			Server &config = find_active_server(fd, servers);
-			RequestParser		parser;
-			std::optional<Request> parsed_request;
-			std::string			status;
+			Server					&config = find_active_server(fd, servers);
+			RequestParser			parser;
+			std::optional<Request>	parsed_request;
+			std::string				status;
 			try
 			{
 				parsed_request = receive_data(fd, parser);
@@ -114,8 +114,18 @@ void handle_client(std::vector<Server> &servers, fd_set *socket_fds, char **envp
 			Route_rule			&route = find_correct_route(config, *parsed_request);
 			if (!route.redirection.empty())
 				status = "301 Moved permanently";
-			Response	response(&config, &route, &parsed_request.value(), fd, status, envp);
-			response.Reply();
+			try
+			{
+				Response	response(&config, &route, &parsed_request.value(), fd, status, envp);
+				response.Reply();
+			}
+			catch(const std::exception& e)
+			{
+				std::cerr << e.what() << '\n';
+				Response errorresponse(fd, "500 Internal Server Error");
+				errorresponse.Reply();
+			}
+			
 		}
 		catch(const std::exception& e)
 		{

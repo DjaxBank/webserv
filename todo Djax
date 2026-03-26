@@ -1,4 +1,2 @@
 work on set_interface
 harden config parser
-cgi
-keep connections alive
