@@ -5,7 +5,7 @@
 #include <iostream>
 #include <sys/socket.h>
 #include <filesystem>
-std::string Cgi(std::string cgi_program, std::vector<std::string> args, char **envp);
+std::string Cgi(std::string cgi_program, std::string file, char **envp);
 
 Response::Response(const int fd, std::string status) : fd(fd), status(status) {};
 
@@ -49,6 +49,8 @@ std::string Response::get_timestr()
 
 bool Response::find_contentype()
 {
+	if (!content_type.empty())
+		return true;
 	if (file_location.find_last_of('.') != file_location.npos)
 	{
 		const std::map<std::string, std::string> types = {
@@ -122,23 +124,33 @@ void Response::ExtractFile(std::string file_path)
 	}
 }
 
-bool Response::is_cgi(std::pair<std::string, std::string> &p_cgi)
+bool Response::is_cgi(std::string &p_cgi)
 {
+	size_t i = file_location.find_last_of('.');
+	std::string ext;
+	if (i != file_location.npos)
+		ext = file_location.substr(file_location.find_last_of('.'));
+	if (ext == ".php")
+	{
+		p_cgi = "php-cgi";
+		return true;
+	}
 	return false;
 }
 
 void Response::GET()
 {
-	std::pair<std::string, std::string> p_cgi;
+	std::string p_cgi;
 
 	if (is_cgi(p_cgi))
 	{
-		std::vector <std::string> args;
-		body = Cgi(p_cgi.second, args, envp);
+		body = Cgi(p_cgi, file_location, envp);
 	}
 	else
+	{
 		ExtractFile(file_location);
-	find_contentype();
+		find_contentype();
+	}
 }
 
 void Response::POST()
@@ -264,9 +276,16 @@ void Response::Reply()
 		this->Send("Location: " + redirect);
 	if (!content_type.empty())
 		this->Send("Content-Type: " + content_type);
-	this->Send("content-length: " + std::to_string(body.length()));
-	this->Send("Connection: close\r\n");
-	this->Send("");
+	std::string length;
+	bool hasend = body.find("\r\n\r\n") != body.npos;
+	if (hasend)
+		length = std::to_string(body.substr(body.find("\r\n\r\n") + 4).length());
+	else
+		length = std::to_string(body.length());
+	this->Send("content-length: " + length);
+	this->Send("Connection: close");
+	if (!hasend)
+		this->Send("");
 	if (!body.empty())
 		this->Send(body);
 }

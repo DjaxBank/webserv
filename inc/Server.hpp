@@ -25,7 +25,7 @@ class Server
 		void	CheckAllFull();	
 	
 	public:
-		std::vector<std::pair<std::string, std::string>>	cgi;
+		std::map<std::string, std::string>					cgiconfigs;
 		Socket												sock;
 		std::string											Forbidden;
 		std::string											NotFound;

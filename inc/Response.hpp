@@ -29,7 +29,7 @@ class Response
 							Response();
 		bool				MethodAllowed();
 		void				SetErrorPages();
-		bool				is_cgi(std::pair<std::string, std::string> &p_cgi);
+		bool				is_cgi(std::string &p_cgi);
 	public:
 		Response(const int fd, std::string status);
 		Response(const Server *config, const Route_rule *route, const Request *request, const int fd, std::string status, char **envp);
