@@ -1,7 +1,38 @@
 #include "Server.hpp"
+#include "functions.hpp"
 #include <fstream> 
 #include <string>
 #include <iostream>
+#include <filesystem>
+
+std::string Server::find_cgi_path(std::string cgi_program, char **envp)
+{
+	std::string					path;
+	std::vector<std::string>	folders;
+
+	for (size_t i = 0 ; envp[i] != NULL ; i++)
+	{
+		path = envp[i];
+		if (path.find("PATH=") == 0)
+			break;
+	}
+	path.erase(0, path.find_first_of('=') + 1);
+	while (!path.empty())
+	{
+		size_t split_loc = path.find_first_of(':');
+		if (split_loc == path.npos)
+			split_loc = path.length();
+		folders.push_back(path.substr(0, split_loc));
+		path.erase(0, split_loc + 1);
+	}
+	for (std::string &cur : folders)
+	{
+		std::string test = cur + "/" + cgi_program;
+		if (std::filesystem::exists(test))
+			return test;
+	}
+	return "";
+}
 
 void Server::ImportPortPairs(std::string value)
 {
@@ -14,9 +45,7 @@ void Server::ImportPortPairs(std::string value)
 	size_t right	= value.find_first_of(' ', delimpos) - 1;
 	if (right == value.npos)
 		right = value.length();
-	int port = std::atoi(value.substr(delimpos + 1, right - delimpos).c_str());
-	std::string interface = value.substr(left, delimpos - left);
-	sock = Socket({port, interface});
+	sock = Socket({std::atoi(value.substr(delimpos + 1, right - delimpos).c_str()), value.substr(left, delimpos - left)});
 }
 
 void Server::ImportRoute(std::ifstream &fstream, size_t &linec)
@@ -98,7 +127,7 @@ void Server::ImportRoute(std::ifstream &fstream, size_t &linec)
 	}
 }
 
-Server::Server(std::ifstream &fstream)
+Server::Server(std::ifstream &fstream, char **envp) : envp(envp)
 {
 	size_t				linec = 0;
 	bool				open, closed = false;
@@ -107,13 +136,15 @@ Server::Server(std::ifstream &fstream)
 		"route",
 		"403 =",
 		"404 =",
-		"MaxRequestBodySize ="
+		"MaxRequestBodySize =",
+		"cgi ="
 	};
 	std::string			*server_locs[] {
 		nullptr,
 		nullptr, 
 		&this->Forbidden,
 		&this->NotFound,
+		nullptr,
 		nullptr
 	};
 
@@ -125,7 +156,7 @@ Server::Server(std::ifstream &fstream)
 		linec++;
 		if (line.find('{') != line.npos)
 			open = true;
-		for (size_t i = 0; i < 5 && !line.empty(); i++)
+		for (size_t i = 0; i < 6 && !line.empty(); i++)
 		{
 			size_t pos = line.find(server_options[i]);
 			if (pos != std::string::npos)
@@ -136,6 +167,7 @@ Server::Server(std::ifstream &fstream)
 				std::string value = line.substr(pos + server_options[i].length());
 				value.erase(value.find_last_not_of(' ') + 1);
 				value.erase(0, value.find_first_not_of(' '));
+				std::string cgi_path;
 				switch (i)
 				{
 					case 0:
@@ -146,6 +178,12 @@ Server::Server(std::ifstream &fstream)
 						break;
 					case 4:
 						MaxRequestBodySize = std::atoi(value.c_str());
+						break;
+					case 5:
+						cgi_path = find_cgi_path(value.substr(value.find(' ') + 1), this->envp);
+						if (cgi_path.empty())
+							throw std::runtime_error(value.substr(value.find(' ') + 1) + " does not exist");
+						cgiconfigs.emplace(value.substr(0, value.find(' ')), cgi_path);
 						break;
 					default:
 						*server_locs[i] = value;

@@ -130,9 +130,9 @@ bool Response::is_cgi(std::string &p_cgi)
 	std::string ext;
 	if (i != file_location.npos)
 		ext = file_location.substr(file_location.find_last_of('.'));
-	if (ext == ".php")
+	if (config->cgiconfigs.contains(ext))
 	{
-		p_cgi = "php-cgi";
+		p_cgi = config->cgiconfigs.find(ext)->second;
 		return true;
 	}
 	return false;
@@ -145,6 +145,8 @@ void Response::GET()
 	if (is_cgi(p_cgi))
 	{
 		body = Cgi(p_cgi, file_location, envp);
+		if (body.empty())
+			status = "500 Internal Server Error";
 	}
 	else
 	{

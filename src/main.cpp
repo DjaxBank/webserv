@@ -62,17 +62,19 @@ static void server_loop(std::vector<Server> servers, char **envp)
 	}
 }
 
-static std::vector<Server> importconfigfile(char *configfile)
+static std::vector<Server> importconfigfile(char *configfile, char **envp)
 {
 	std::ifstream config(configfile);
 	std::vector<Server> servers;
 
-	while (config.is_open() && !config.eof())
+	if (!config.is_open())
+		throw std::runtime_error("File does not exist");
+	while (!config.eof())
 	{
 		std::string line;
 		getline(config, line);
 		if (line.find("server") != line.npos)
-			servers.emplace_back(config);
+			servers.emplace_back(config, envp);
 		else if (!line.empty() && line.find("server") == line.npos)
 			throw std::runtime_error("unexpected attribute: " + line);
 	}
@@ -89,7 +91,7 @@ int main(int argc, char **argv, char **envp)
 	signal(SIGINT, signal_handler);
 	try
 	{
-		server_loop(importconfigfile(argv[1]), envp);
+		server_loop(importconfigfile(argv[1], envp), envp);
 	}
 	catch(const std::exception& e)
 	{

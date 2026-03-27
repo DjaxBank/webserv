@@ -23,8 +23,10 @@ class Server
 		void	ImportPortPairs(std::string value);
 		void	ImportRoute(std::ifstream &fstream, size_t &linec);
 		void	CheckAllFull();	
+		std::string find_cgi_path(std::string cgi_program, char **envp);
 	
 	public:
+		char												**envp;
 		std::map<std::string, std::string>					cgiconfigs;
 		Socket												sock;
 		std::string											Forbidden;
@@ -32,6 +34,6 @@ class Server
 		int													MaxRequestBodySize;
 		std::vector<Route_rule>								routes;
 
-		Server(std::ifstream &fstream);
+		Server(std::ifstream &fstream, char **envp);
 		~Server();
 };
