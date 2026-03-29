@@ -256,17 +256,17 @@ void Response::Reply()
 			{
 				switch (method)
 				{
-				case (HttpMethod::GET):
-					this->GET();
-					break;
-				case (HttpMethod::POST):
-					this->POST();
-					break;
-				case (HttpMethod::DELETE):
-					this->DELETE();
-					break;
-				default:
-					break;
+					case (HttpMethod::GET):
+						this->GET();
+						break;
+					case (HttpMethod::POST):
+						this->POST();
+						break;
+					case (HttpMethod::DELETE):
+						this->DELETE();
+						break;
+					default:
+						break;
 				}
 			}
 		}

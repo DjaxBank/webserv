@@ -139,14 +139,6 @@ Server::Server(std::ifstream &fstream, char **envp) : envp(envp)
 		"MaxRequestBodySize =",
 		"cgi ="
 	};
-	std::string			*server_locs[] {
-		nullptr,
-		nullptr, 
-		&this->Forbidden,
-		&this->NotFound,
-		nullptr,
-		nullptr
-	};
 
 	while (fstream.is_open() && !fstream.eof() && !closed)
 	{
@@ -176,6 +168,12 @@ Server::Server(std::ifstream &fstream, char **envp) : envp(envp)
 					case 1:
 						ImportRoute(fstream, linec);
 						break;
+					case 2:
+						this->Forbidden = value;
+						break;
+					case 3:
+						this->NotFound = value;
+						break;
 					case 4:
 						MaxRequestBodySize = std::atoi(value.c_str());
 						break;
@@ -186,7 +184,6 @@ Server::Server(std::ifstream &fstream, char **envp) : envp(envp)
 						cgiconfigs.emplace(value.substr(0, value.find(' ')), cgi_path);
 						break;
 					default:
-						*server_locs[i] = value;
 						break;
 				}
 			}
