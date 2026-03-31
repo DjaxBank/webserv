@@ -133,8 +133,7 @@ void handle_client(std::vector<Server> &servers, fd_set *socket_fds, std::vector
 			Response errorresponse(fd, "400 Bad Request");
 			errorresponse.Reply();
 		}
-		
-		if (parsed_request.value().getHeaders().contains("Connection: close"))
+		if (parsed_request.value().getHeaders().find("Connection")->second == "close")
 		{
 			std::cout << "Closing connection " << std::to_string(fd) << '\n';
 			close(fd);

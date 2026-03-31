@@ -246,7 +246,7 @@ void Response::Reply()
 		{
 			if (status == "403 Forbidden" || status == "404 Not Found")
 				SetErrorPages();
-			else
+			else if (status == "200 OK")
 			{
 				switch (method)
 				{
@@ -265,6 +265,9 @@ void Response::Reply()
 			}
 		}
 	}
+	std::vector<std::string>	headers;
+	std::string					to_send;
+
 	std::cout << status << '\n';
 	headers.emplace_back("HTTP/1.1 " + status);
 	headers.emplace_back("Date: " + Date);
@@ -277,16 +280,16 @@ void Response::Reply()
 		headers.emplace_back ("content-length: " + std::to_string(body.substr(body.find("\r\n\r\n") + 4).length()));
 	else
 		headers.emplace_back("content-length: " + std::to_string(body.length()));
-	headers.emplace_back("Connection: keep-alive");
+	headers.emplace_back("Connection: close"); // implement keep-alive logic
 	if (!hasend)
 		headers.emplace_back("");
 	for (std::string &header : headers)
 	{
-		header += "\r\n";
-		send(fd, header.c_str(), header.length(), MSG_NOSIGNAL);
+		to_send += header;
+		to_send += "\r\n";
 	}
-	if (!body.empty())
-		send(fd, body.c_str(), body.length(), MSG_NOSIGNAL);
+	to_send += body;
+	send(fd, to_send.c_str(), to_send.length(), MSG_NOSIGNAL);
 }
 
 Response::~Response()
