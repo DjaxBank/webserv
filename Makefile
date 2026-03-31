@@ -16,7 +16,7 @@ DEPENDS = ${OBJS:.o=.d}
 CC = c++
 INC_DIR = inc
 CPPFLAGS = -I$(INC_DIR)
-FLAGS = -Wall -Wextra -MMD -std=c++20 -g -fsanitize=address,undefined 
+FLAGS = -Wall -Wextra -MMD -std=c++20 -g
 
 all: $(NAME)
 

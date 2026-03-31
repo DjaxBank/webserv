@@ -14,7 +14,6 @@ class Response
 		std::string			Date;
 		std::string			content_type;
 		std::string			file_location;
-		std::vector<std::string> headers;
 		std::string			body;
 		void 				ServeDirectory(std::string &path);
 		void				ExtractFile(std::string file_path);
