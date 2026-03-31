@@ -70,12 +70,6 @@ bool Response::find_contentype()
 	return false;
 }
 
-void Response::Send(std::string data)
-{
-	data += "\r\n";
-	send(fd, data.c_str(), data.length(), MSG_NOSIGNAL);
-}
-
 void Response::ServeDirectory(std::string &path)
 {
 	body = "<!DOCTYPE html>\n<html lang= \"en\">\n\t<head>\n\t\t<meta charset=\"UTF-8\" />\n\t\t<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" />\n";
@@ -272,24 +266,27 @@ void Response::Reply()
 		}
 	}
 	std::cout << status << '\n';
-	this->Send("HTTP/1.1 " + status);
-	this->Send("Date: " + Date);
+	headers.emplace_back("HTTP/1.1 " + status);
+	headers.emplace_back("Date: " + Date);
 	if (status == "301 Moved permanently")
-		this->Send("Location: " + route->redirection);
+		headers.emplace_back("Location: " + route->redirection);
 	if (!content_type.empty())
-		this->Send("Content-Type: " + content_type);
-	std::string length;
-	bool hasend = body.find("\r\n\r\n") != body.npos;
+		headers.emplace_back("Content-Type: " + content_type);
+	bool hasend = (body.find("\r\n\r\n") != body.npos);
 	if (hasend)
-		length = std::to_string(body.substr(body.find("\r\n\r\n") + 4).length());
+		headers.emplace_back ("content-length: " + std::to_string(body.substr(body.find("\r\n\r\n") + 4).length()));
 	else
-		length = std::to_string(body.length());
-	this->Send("content-length: " + length);
-	this->Send("Connection: close");
+		headers.emplace_back("content-length: " + std::to_string(body.length()));
+	headers.emplace_back("Connection: keep-alive");
 	if (!hasend)
-		this->Send("");
+		headers.emplace_back("");
+	for (std::string &header : headers)
+	{
+		header += "\r\n";
+		send(fd, header.c_str(), header.length(), MSG_NOSIGNAL);
+	}
 	if (!body.empty())
-		this->Send(body);
+		send(fd, body.c_str(), body.length(), MSG_NOSIGNAL);
 }
 
 Response::~Response()

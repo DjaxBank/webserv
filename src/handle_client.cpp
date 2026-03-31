@@ -65,7 +65,7 @@ static Route_rule &find_correct_route(Server &serv, const Request &request)
 	throw std::runtime_error("");
 }
 
-void handle_client(std::vector<Server> &servers, fd_set *socket_fds, char **envp)
+void handle_client(std::vector<Server> &servers, fd_set *socket_fds, std::vector<int> &keep_alive, char **envp)
 {
 	std::vector<int>	client_fds;
 
@@ -81,12 +81,13 @@ void handle_client(std::vector<Server> &servers, fd_set *socket_fds, char **envp
 	}
 	for (const int fd : client_fds)
 	{
+		std::optional<Request>	parsed_request;
 		try
 		{
+			std::cout << "socket " << std::to_string(fd) << ' ';
 			
 			Server					&config = find_active_server(fd, servers);
 			RequestParser			parser;
-			std::optional<Request>	parsed_request;
 			std::string				status;
 			try
 			{
@@ -122,7 +123,7 @@ void handle_client(std::vector<Server> &servers, fd_set *socket_fds, char **envp
 			catch(const std::exception& e)
 			{
 				std::cerr << e.what() << '\n';
-				Response errorresponse(fd, "500 Internal Server Error");
+				Response errorresponse(fd, "500 Internal Server Error");  
 				errorresponse.Reply();
 			}
 			
@@ -132,7 +133,13 @@ void handle_client(std::vector<Server> &servers, fd_set *socket_fds, char **envp
 			Response errorresponse(fd, "400 Bad Request");
 			errorresponse.Reply();
 		}
+		
+		if (parsed_request.value().getHeaders().contains("Connection: close"))
+		{
+			std::cout << "Closing connection " << std::to_string(fd) << '\n';
+			close(fd);
+		}
+		else if (std::find(keep_alive.begin(), keep_alive.end(), fd) == keep_alive.end())
+			keep_alive.push_back(fd);
+		}
 	}
-	for (const int fd : client_fds)
-		close(fd);
-}
