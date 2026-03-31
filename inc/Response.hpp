@@ -14,6 +14,7 @@ class Response
 		std::string			Date;
 		std::string			content_type;
 		std::string			file_location;
+		std::vector<std::string> headers;
 		std::string			body;
 		void 				ServeDirectory(std::string &path);
 		void				ExtractFile(std::string file_path);
@@ -22,7 +23,6 @@ class Response
 		void 				DELETE();
 		std::string			get_timestr();
 		bool				find_contentype();
-		void				Send(std::string data);
 							Response();
 		bool				MethodAllowed();
 		void				SetErrorPages();

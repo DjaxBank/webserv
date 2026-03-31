@@ -3,10 +3,11 @@
 #include <sys/select.h>
 #include <fstream>
 #include <filesystem>
+#include <ostream>
+#include <fcntl.h>
 #include "Socket.hpp"
 #include "functions.hpp"
 #include "signal.h"
-#include <ostream>
 #include "Server.hpp"
 
 static bool server_running = true;
@@ -18,28 +19,48 @@ static void signal_handler(int signal)
 	std::cout << '\n';
 }
 
-static fd_set setup_socket_fds(std::vector<Server> &servers)
+static fd_set setup_socket_fds(std::vector<int> &fd_list)
 {
 	fd_set socket_fds;
 	FD_ZERO(&socket_fds);
-	for (Server &serv : servers)
-			FD_SET(serv.sock.get_socket_fd(), &socket_fds);
+	for (int fd : fd_list)
+		FD_SET(fd, &socket_fds);
 	return socket_fds;
 }
 
-static void reset_sockets(std::vector<Server> &servers, fd_set &socket_fds, int &max_fd)
+static void reset_sockets(std::vector<Server> &servers, fd_set &socket_fds, std::vector<int> keep_alive, int &max_fd)
 {
-	socket_fds = setup_socket_fds(servers);
-	max_fd = 0;
+	std::vector<int> fd_list;
+
 	for (Server &serv : servers)
-		if (serv.sock.get_socket_fd() > max_fd)
-			max_fd = serv.sock.get_socket_fd();
+		fd_list.push_back(serv.sock.get_socket_fd());
+	std::vector<int>::iterator it = keep_alive.begin();
+	while (it != keep_alive.end())
+	{
+		if (fcntl(*it, F_GETFD) == -1)
+		{
+			std::cout << "Closing connection " << std::to_string(*it) << '\n';
+			close(*it);
+			keep_alive.erase(it);
+		}
+		else
+		{
+			fd_list.push_back(*it);
+			it++;
+		}
+	}
+	socket_fds = setup_socket_fds(fd_list);
+	max_fd = 0;
+	for (int fd : fd_list)
+		if (fd > max_fd)
+			max_fd = fd;
 }
 
 static void server_loop(std::vector<Server> servers, char **envp)
 {
-	fd_set	socket_fds;
-	int		max_fd;
+	fd_set				socket_fds;
+	int					max_fd;
+	std::vector<int>	keep_alive;
 
 	for (Server &serv : servers)
 		std::cout << "Webserver listening on " << serv.sock.info.second << " interface port " <<  std::to_string(serv.sock.info.first) << '\n';
@@ -47,12 +68,12 @@ static void server_loop(std::vector<Server> servers, char **envp)
 	while (server_running)
 	{
 		timeval timeout{3, 0};
-		reset_sockets(servers, socket_fds, max_fd);
+		reset_sockets(servers, socket_fds, keep_alive, max_fd);
 		if (select(max_fd + 1, &socket_fds, NULL, NULL, &timeout) > 0)
 		{
 			try
 			{
-				handle_client(servers, &socket_fds, envp);
+				handle_client(servers, &socket_fds, keep_alive, envp);
 			}
 			catch(const std::exception& e)
 			{
