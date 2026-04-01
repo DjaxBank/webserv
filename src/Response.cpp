@@ -141,6 +141,20 @@ void Response::GET()
 		body = Cgi(p_cgi, file_location, envp);
 		if (body.empty())
 			status = "500 Internal Server Error";
+		size_t headers_end = body.find("\r\n\r\n");
+		if (headers_end != body.npos)
+		{
+			std::string	cgi_headers = body.substr(0, headers_end + 2);
+			body.erase(0, headers_end + 4);
+			while (!cgi_headers.empty())
+			{
+				size_t delimloc = cgi_headers.find("\r\n");
+				std::string new_header = cgi_headers.substr(0, delimloc);
+				if (new_header.find("Content-type:") == 0)
+					content_type = new_header.substr(14);
+				cgi_headers.erase(0, delimloc + 2);
+			}
+		}
 	}
 	else
 	{
@@ -265,33 +279,32 @@ void Response::Reply()
 			}
 		}
 	}
-	std::vector<std::string>	headers;
-	std::string					to_send;
+	std::string	to_send;
 
 	std::cout << status << '\n';
-	headers.emplace_back("HTTP/1.1 " + status);
+	headers.emplace(headers.begin(), "HTTP/1.1 " + status);
 	headers.emplace_back("Date: " + Date);
 	if (status == "301 Moved permanently")
 		headers.emplace_back("Location: " + route->redirection);
 	if (!content_type.empty())
-		headers.emplace_back("Content-Type: " + content_type);
-	bool hasend = (body.find("\r\n\r\n") != body.npos);
-	if (hasend)
-		headers.emplace_back ("content-length: " + std::to_string(body.substr(body.find("\r\n\r\n") + 4).length()));
-	else
-		headers.emplace_back("content-length: " + std::to_string(body.length()));
+		headers.emplace_back("Content-type: " + content_type);
+	headers.emplace_back("content-length: " + std::to_string(body.length()));
 	headers.emplace_back("Connection: close"); // implement keep-alive logic
-	if (!hasend)
-		headers.emplace_back("");
-	for (std::string &header : headers)
+ 	for (std::string &header : headers)
 	{
 		to_send += header;
 		to_send += "\r\n";
 	}
+	to_send += "\r\n";
 	to_send += body;
-	send(fd, to_send.c_str(), to_send.length(), MSG_NOSIGNAL);
+	size_t send_bytes = 0;
+	while (send_bytes < to_send.length())
+	{
+		ssize_t val = send(fd, to_send.c_str() + send_bytes, to_send.length() - send_bytes, MSG_NOSIGNAL);
+		if (val < 0)
+			throw std::runtime_error("error sending to socket");
+		send_bytes += val;
+	}
 }
 
-Response::~Response()
-{
-}
+Response::~Response(){}
