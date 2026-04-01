@@ -16,11 +16,11 @@ static std::string toLower(const std::string& str)
 	return lower;
 }
 
-Request::Request() : m_method(), m_raw_uri(), m_version(), m_headers(), m_body(), m_chunked(), m_content_len()
+Request::Request() : m_method(), m_raw_uri(), m_normalized_path(), m_query(), m_version(), m_headers(), m_body(), m_chunked(), m_content_len()
 {
 };
 
-Request::Request(const Request& other): m_method(other.m_method), m_raw_uri(other.m_raw_uri), m_version(other.m_version), m_headers(other.m_headers), m_body(other.m_body), m_chunked(other.m_chunked), m_content_len(other.m_content_len)
+Request::Request(const Request& other): m_method(other.m_method), m_raw_uri(other.m_raw_uri), m_normalized_path(other.m_normalized_path), m_query(other.m_query), m_version(other.m_version), m_headers(other.m_headers), m_body(other.m_body), m_chunked(other.m_chunked), m_content_len(other.m_content_len)
 {
 };
 
@@ -30,6 +30,8 @@ Request &Request::operator=(const Request& other)
 	{
 		this->m_method = other.m_method;
 		this->m_raw_uri = other.m_raw_uri;
+		this->m_normalized_path = other.m_normalized_path;
+		this->m_query = other.m_query;
 		this->m_version = other.m_version;
 		this->m_headers = other.m_headers;
 		this->m_body = other.m_body;
@@ -126,10 +128,18 @@ void Request::setContentLen(size_t len)
 
 void Request::addHeader(const std::string& key, const std::string& value)
 {
-	// TODO: handle duplicate headers (some headers like Set-Cookie can appear multiple times)
-	// Current implementation only stores the last value for duplicate keys
-	// so pretty much search the map and see if it exists already before adding a new one.
-	m_headers[toLower(key)] = value;
+	std::string normalized_key = toLower(key);
+	std::map<std::string, std::string>::iterator it = m_headers.find(normalized_key);
+
+	if (it != m_headers.end())
+	{
+		it->second += ", " + value;
+	}
+	else
+	{
+		m_headers[normalized_key] = value;
+	}
+	
 }
 
 // changed this to append at end which I assume is what I wanted but I'm not 100% sure. 
