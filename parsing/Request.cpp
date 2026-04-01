@@ -139,7 +139,6 @@ void Request::addHeader(const std::string& key, const std::string& value)
 	{
 		m_headers[normalized_key] = value;
 	}
-	
 }
 
 // changed this to append at end which I assume is what I wanted but I'm not 100% sure. 
