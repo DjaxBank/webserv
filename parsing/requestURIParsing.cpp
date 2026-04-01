@@ -136,9 +136,13 @@ char RequestParser::decodeByte(char c1, char c2)
 }
 
 /*
-	We use string_view here because the idea is this is created at compile time
-	and we don't want to deal with object lifetime management.
-	Works nicer with constexpr.
+    Using string_view so this table can be built at compile time
+    without extra lifetime/ownership weirdness.
+
+    [](){...} is an anonymous lambda, and the final (); runs it immediately.
+    It returns a fully initialized std::array<bool, 256> for safe_decode_lookup.
+
+    Also: because this is static at file scope, it stays local to this .cpp file only.
 */
 constexpr static std::array<bool, 256> safe_decode_lookup = []()
 {
@@ -217,7 +221,6 @@ bool RequestParser::normalizePath(std::string& parsed_uri)
 
 bool RequestParser::normalizeURI(std::string& parsed_uri)
 {
-	
 	if (!rejectNullBytes(parsed_uri))
 		return false;
 	if (!validateHexBytes(parsed_uri))
