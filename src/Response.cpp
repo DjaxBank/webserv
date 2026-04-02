@@ -12,7 +12,7 @@ Response::Response(const int fd, std::string status) : fd(fd), status(status) {}
 Response::Response(const Server *config, const Route_rule *route, const Request *request, const int fd, std::string status, char **envp)
 	: config(config), envp(envp), fd(fd), request(request), route(route), status(status), method(request->getMethod()), Date(get_timestr())
 {
-	file_location = route->root + "/" + request->getRawUri().substr(route->route.length());
+	file_location = route->root + "/" + request->getPath().substr(route->route.length());
 	if (this->status.empty())
 	{
 		std::error_code ec;
