@@ -66,7 +66,7 @@ bool RequestParser::fetchData(const std::string& data)
     }
 
     // ADD TIMEOUT CHECK HERE PROBABLY (do we have a time function?)
-
+    // maybe i should implement the CRLF validation here instead.
     if (m_state == ParserState::REQUEST_LINE)
     {
         if (m_buffer.find(HTTP_CONSTANT::CRLF) == std::string::npos)
@@ -117,7 +117,6 @@ std::optional<Request> RequestParser::parseClientRequest(const std::string& data
         if (m_state == ParserState::ERROR)
             throw HttpParseException(400, "Invalid body");
     }
-
     if (m_state == ParserState::COMPLETE)
         return std::make_optional(m_request);
     else

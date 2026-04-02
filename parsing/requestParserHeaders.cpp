@@ -21,6 +21,56 @@ bool RequestParser::extractHeadersSection(std::string& out_headers_section)
     m_buffer.erase(0, header_end + HTTP_CONSTANT::EMPTY_LINE_LENGTH);
     return true;
 }
+ 
+#include <array>
+#include <string_view>
+#include <cstdint>
+
+constexpr static std::array<bool, 256> valid_key_chars = []()
+{
+	std::array<bool, 256> result{};
+	const std::string_view safe_chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    "abcdefghijklmnopqrstuvwxyz"
+    "0123456789"
+    "!#$%&'*+-.^_"
+    "\x60"
+    "|~";
+	for (uint8_t i : safe_chars)
+	{
+		result[i] = true; 
+	}
+	return result;
+}();
+
+constexpr static std::array<bool, 256> valid_value_chars = []()
+{
+	std::array<bool, 256> result{};
+	const std::string_view safe_chars =
+        " "
+        "!\"#$%&'()*+,-./"
+        "0123456789"
+        ":;<=>?@"
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+        "[\\]^_`"
+        "abcdefghijklmnopqrstuvwxyz"
+        "{|}~";
+	for (uint8_t i : safe_chars)
+	{
+		result[i] = true; 
+	}
+	return result;
+}();
+
+
+static bool check_safe_key_char(char c)
+{
+	return valid_key_chars[static_cast<unsigned char>(c)];
+}
+
+static bool check_safe_value_char(char c)
+{
+	return valid_value_chars[static_cast<unsigned char>(c)];
+}
 
 /* Parses a single header line and adds to request
  * @param header_line: the line to parse (format: "Key: Value")
@@ -38,6 +88,14 @@ bool RequestParser::parseHeaderLine(const std::string& header_line)
     }
     
     std::string key = extractKey(header_line);
+    for (unsigned char c : key)
+    {
+        if (!check_safe_key_char(c))
+        {
+            setErrorAndReturn("invalid char found in header key", header_line);
+            return false;
+        }
+    }
     if (key.empty())
     {
         setErrorAndReturn("invalid header key", header_line);
@@ -45,6 +103,14 @@ bool RequestParser::parseHeaderLine(const std::string& header_line)
     }
     
     std::string value = extractValue(header_line);
+    for (unsigned char c : value)
+    {
+        if (!check_safe_value_char(c))
+        {
+            setErrorAndReturn("invalid char found in header value", header_line);
+            return false;
+        }
+    }
     m_request.addHeader(key, value);
     return true;
 }
@@ -116,11 +182,38 @@ bool RequestParser::parseBodyMetadata()
     return true;
 }
 
+bool RequestParser::validateCRLF(const std::string &string)
+{
+    for (size_t i = 0; i < string.size(); i++)
+    {
+        if (string[i] == '\n')
+        {
+            if (i == 0 || string[i - 1] != '\r')
+            {
+                setErrorAndReturn("found bare '\n' in header", string);
+                return false;
+            }
+        }
+        if (string[i] == '\r')
+        {
+            if (i + 1 >= string.size() || string[i + 1] != '\n')
+            {
+                setErrorAndReturn("found bare '\r' in header", string);
+                return false;
+            }    
+        }
+    }
+    return true;
+}
+
 /* Parses header of HTTP request and adds them to a request's key:value map */
 void RequestParser::parseHeaders()
 {   
     std::string headers_section;
     if (!extractHeadersSection(headers_section))
+        return;
+
+    if (!validateCRLF(headers_section))
         return;
     
     if (!processHeaderLines(headers_section))

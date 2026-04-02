@@ -90,7 +90,8 @@ void RequestParser::parseRequestLine()
     std::string request_line;
     if (!extractLineToken(m_buffer, request_line))
         return;
-
+    if (!validateCRLF(request_line))
+        return;
     if (!extractMethod(request_line))
         return;
     

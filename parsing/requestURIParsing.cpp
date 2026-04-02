@@ -2,6 +2,8 @@
 #include <iostream>
 #include <requestParser.hpp>
 #include <Request.hpp>
+#include <array>
+#include <string_view>
 
 
 bool RequestParser::errorOnScheme(const std::string& copy_uri)
@@ -114,10 +116,14 @@ bool RequestParser::rejectNullBytes(std::string& parsed_uri)
 
 static char hexToDecimal(char c)
 {
-	if (c >= '0' && c <= '9')
-		return (c - '0');
-	else
-		return ((c - 'A') + 10);
+	unsigned char uc = static_cast<unsigned char>(c);
+	if (uc >= '0' && uc <= '9')
+		return (uc - '0');
+	if (uc >= 'A' && uc <= 'F')
+		return (uc - 'A' + 10);
+	if (uc >= 'a' && uc <= 'f')
+		return (uc - 'a' + 10);
+	return (0);
 }
 
 char RequestParser::decodeByte(char c1, char c2)
@@ -129,27 +135,55 @@ char RequestParser::decodeByte(char c1, char c2)
 	return decoded_char;
 }
 
+/*
+    Using string_view so this table can be built at compile time
+    without extra lifetime/ownership weirdness.
+
+    [](){...} is an anonymous lambda, and the final (); runs it immediately.
+    It returns a fully initialized std::array<bool, 256> for safe_decode_lookup.
+
+    Also: because this is static at file scope, it stays local to this .cpp file only.
+*/
+constexpr static std::array<bool, 256> safe_decode_lookup = []()
+{
+	std::array<bool, 256> result{};
+	const std::string_view safe_chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~";
+	for (uint8_t i : safe_chars)
+	{
+		result[i] = true; 
+	}
+	return result;
+}();
+
+
+static bool check_safe_decode(char c)
+{
+	return safe_decode_lookup[static_cast<unsigned char>(c)];
+}
+
 bool RequestParser::validateHexBytes(std::string& parsed_uri)
 {
 	for (size_t i = 0; i < parsed_uri.length(); i++)
 	{
 		if (parsed_uri[i] == '%')
 		{
-			if (static_cast<size_t>(i+2) > parsed_uri.length())
+			if (static_cast<size_t>(i+2) >= parsed_uri.length())
 			{
 				setErrorAndReturn("malformed request: hexbyte intersects with end of uri", parsed_uri);
 				m_state = ParserState::ERROR;
 				return false;
 			}
-			if (!isxdigit(parsed_uri[i+1]) || !isxdigit(parsed_uri[i+2]))
+			if (!isxdigit(static_cast<unsigned char>(parsed_uri[i+1])) || !isxdigit(static_cast<unsigned char>(parsed_uri[i+2])))
 			{
 				setErrorAndReturn("malformed request: hexbyte improperly formed", parsed_uri);
 				m_state = ParserState::ERROR;
 				return false;
 			}
-			if (parsed_uri[i+1] < 'A' )
-			parsed_uri.replace(i, 3, 1, decodeByte(parsed_uri[i+1], parsed_uri[i+2]));
-
+			char decoded_char = decodeByte(parsed_uri[i+1], parsed_uri[i+2]);
+			if (check_safe_decode(decoded_char))
+				parsed_uri.replace(i, 3, 1, decoded_char);
+			else
+				i += 2;
 		}
 	}
 	return true;
@@ -157,81 +191,36 @@ bool RequestParser::validateHexBytes(std::string& parsed_uri)
 
 bool RequestParser::normalizePath(std::string& parsed_uri)
 {
-	std::string input_buffer = parsed_uri;
-	std::string output_buffer;
-	if (input_buffer[0] == '/')
-		output_buffer.insert(0, "/");
-	input_buffer.erase(0, 1);
-	while (!input_buffer.empty())
+	std::vector<std::string> segments;
+	size_t start = 1;
+
+	for (size_t pos = 1; pos <= parsed_uri.length(); pos++)
 	{
-		if (input_buffer.compare(0, 2, "./") == 0)
-			input_buffer.erase(0, 2);
-		else if (input_buffer.compare(0, 3, "../") == 0)
-			input_buffer.erase(0, 3);
-		else if (input_buffer.compare(0, 3, "/./") == 0)
+		if (pos == parsed_uri.length() || parsed_uri[pos] == '/')
 		{
-			input_buffer.erase(0, 3);
-			input_buffer.insert(0, "/");
-		}
-		else if (input_buffer.compare(0, 4, "/../") == 0)
-		{
-			size_t pos = output_buffer.rfind('/');
-			if (pos != std::string::npos)
+			std::string segment = parsed_uri.substr(start, pos - start);
+			if (segment != "." && segment != ".." && !segment.empty())
+				segments.push_back(segment);
+			if (segment == "..")
 			{
-				output_buffer.erase(pos);
+				if (!segments.empty())
+					segments.pop_back();
 			}
-			input_buffer.erase(0, 4);
-			input_buffer.insert(0, "/");
+			start = pos + 1;
 		}
-		else if (input_buffer.compare(0, 3, "/..") == 0)
-		{
-			if (input_buffer.length() == 3 || input_buffer[3] == '/')
-			{
-				size_t pos = output_buffer.rfind('/');
-				if (pos != std::string::npos)
-				{
-					output_buffer.erase(pos);
-				}
-				input_buffer.erase(0, 3);
-				input_buffer.insert(0, "/");
-			}
-		}
-		else if (input_buffer.compare(0, 2, "/.") == 0)
-		{
-			if (input_buffer.length() == 2 || input_buffer[2] == '/')
-			{
-				input_buffer.erase(0, 2);
-				input_buffer.insert(0, "/");
-			}
-		}
-		else if (input_buffer == "." || input_buffer == "..")
-		{
-			input_buffer.erase(0);
-		}
-		else
-		{
-			size_t segment_end = input_buffer.find('/', 1);
-			size_t segment_len;
-			if (segment_end == std::string::npos)
-			{
-				segment_len = input_buffer.length();
-				output_buffer += input_buffer.substr(0, segment_len);
-				input_buffer.erase(0, segment_len);
-			}
-			else
-			{
-				output_buffer += input_buffer.substr(0, segment_end);
-				input_buffer.erase(0, segment_end);
-			}
-		}	
 	}
-	parsed_uri = output_buffer;
+	parsed_uri = "/";
+	for (size_t i = 0; i < segments.size(); i++)
+	{
+		parsed_uri += segments[i];
+		if (i < segments.size() - 1)
+			parsed_uri += "/";
+	}
 	return true;
 }
 
 bool RequestParser::normalizeURI(std::string& parsed_uri)
 {
-	
 	if (!rejectNullBytes(parsed_uri))
 		return false;
 	if (!validateHexBytes(parsed_uri))
@@ -244,9 +233,7 @@ bool RequestParser::normalizeURI(std::string& parsed_uri)
 
 bool RequestParser::parseURI(void)
 {
-	std::string uri = "/a//b";
-
-	std::string working_uri(uri);
+	std::string working_uri(m_request.getRawUri());
 	if (!errorOnEmpty(working_uri))
 		return false;
 	if (!validateLeadingSlash(working_uri))
@@ -264,6 +251,7 @@ bool RequestParser::parseURI(void)
 		return false;
 	if (!normalizeURI(working_uri))
 		return false;
+	m_request.setPath(working_uri);
 	return true;
 }
 

@@ -218,9 +218,12 @@ void RequestParser::debugState(const char* label) const
             << "\n[ParserState] " << (label ? label : "")
             << " \nstate=" << state_tostring(m_state) << "\""
             << " \nmethod=\"" << method_tostring(m_request.getMethod()) << "\""
-            << " \ntarget=\"" << m_request.getRawUri() << "\""
+            << " \nraw_uri=\"" << m_request.getRawUri() << "\""
+            << " \nnormalized_path\"" << m_request.getPath() << "\""
             << " \nversion=\"" << version_tostring(m_request.getVersion()) << "\""
-            << " \nheaders=" << m_request.getHeaders().size() << "\n";
+            << " \nheaders_count=\"" << m_request.getHeaders().size() << "\""
+             << " \nheaders=\"" << m_request.printHeaders() << "\""
+            << " \nbody=" << m_request.getBodyAsString() << "\n";
             
     const std::map<std::string, std::string>& headers = m_request.getHeaders();
     for (const auto& pair : headers)
