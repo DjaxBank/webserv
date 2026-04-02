@@ -289,7 +289,7 @@ void Response::Reply()
 	if (!content_type.empty())
 		headers.emplace_back("Content-type: " + content_type);
 	headers.emplace_back("content-length: " + std::to_string(body.length()));
-	headers.emplace_back("Connection: close"); // implement keep-alive logic
+	headers.emplace_back("Connection: keep-alive"); // implement keep-alive logic
  	for (std::string &header : headers)
 	{
 		to_send += header;
