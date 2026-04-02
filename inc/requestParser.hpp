@@ -15,6 +15,40 @@ enum class ParserState
 	ERROR,
 };
 
+enum class ParseError
+{
+    None,
+    Incomplete,                  // Need more bytes (not an error by itself)
+    InvalidRequestLine,          // Bad method/target/version syntax
+    UnsupportedMethod,           // Method token parsed but not supported
+    InvalidHttpVersion,
+    InvalidUriSyntax,
+    UriTooLong,
+    MissingHostHeader,           // HTTP/1.1 Host required
+    InvalidHeaderSyntax,
+    HeaderSectionTooLarge,
+    UnsupportedTransferEncoding,
+    ConflictingLengthFraming,    // TE + CL conflict
+    InvalidContentLength,
+    BodyTooLarge,
+    InvalidChunkedFraming,
+    InternalParserFailure
+};
+
+// CONSIDER MOVING TO ITS OWN header file
+enum class ReplyStatus
+{
+    OK = 200,
+    MovedPermanently = 301,
+    BadRequest = 400,
+    RequestTimeout = 408,
+    ContentTooLarge = 413,
+    UriTooLong = 414,
+    RequestHeaderFieldsTooLarge = 431,
+    InternalServerError = 500,
+    NotImplemented = 501
+};
+
 // HTTP parsing constants
 namespace HTTP_CONSTANT {
 	inline constexpr size_t CRLF_LENGTH = 2;
@@ -44,11 +78,13 @@ void handle_method(HttpMethod method);
 class HttpParseException : public std::exception
 {
 	private:
-		int m_status;
+		ParseError m_error;
+		ReplyStatus m_status;
 		std::string m_msg;
 	public:
 		HttpParseException(int status, const std::string& msg);
-		int statusCode() const noexcept;
+		ParseError getError() const noexcept;
+		ReplyStatus getStatus() const noexcept;
 		const char* what() const noexcept override;
 };
 
