@@ -89,10 +89,6 @@ bool RequestParser::fetchData(const std::string& data)
  */
 std::optional<Request> RequestParser::parseClientRequest(const std::string& data)
 {
-    if (data == "POST /smuggle HTTP/1.1\r\nHost: example.com\r\nTransfer-Encoding: chunked\r\n\r\n5\r\nHello\r\n0\r\n\r\nGARBAGE")
-    {
-        std::cout << "lol\n";
-    }
     if (!fetchData(data))
     {
         if (m_state == ParserState::ERROR)
