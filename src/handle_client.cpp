@@ -77,7 +77,7 @@ void close_socket(int fd, std::vector<Server> &servers, std::vector<int> &keep_a
 		if (it != serv.sock.client_fds.end())
 		{
 			serv.sock.client_fds.erase(it);
-			return ;
+			break ;
 		}
 	}
 	auto it = std::find(keep_alive.begin(), keep_alive.end(), fd);
@@ -109,64 +109,100 @@ void handle_client(std::vector<Server> &servers, fd_set *monitored, std::vector<
 		if (FD_ISSET(fd, monitored))
 			client_fds.push_back(fd);
 	}
-	for (const int fd : client_fds)
 	{
-		std::optional<Request>	parsed_request;
-		try
+		for (const int fd: client_fds)
 		{
+			std::optional<Request> parsed_request;
 			std::cout << "socket " << std::to_string(fd) << ' ';
-
-			Server					&config = find_active_server(fd, servers);
-			RequestParser			parser;
-			std::string				status;
+			Server			&config = find_active_server(fd, servers);
+			RequestParser	parser;
+			bool			should_close = false;
+			
 			try
 			{
 				parsed_request = receive_data(fd, parser);
-			}
-			catch (const HttpParseException& e)
-			{
-				std::cerr << "Parse error on fd " << fd
-						<< " (status " << e.statusCode() << "): "
-						<< e.what() << '\n';
-				throw std::runtime_error("");
+
+				if (!parsed_request.has_value())
+				{
+					reply_status = HTTP_STATUS::BAD_REQUEST;
+					should_close = true;
+				}
+				// try to find route, error on emtpy
 
 			}
-			catch (const std::exception& e)
-			{
-				std::cerr << "Error handling request on fd " << fd
-						<< ": " << e.what() << '\n';
-				throw std::runtime_error("");
-			}
-			if (!parsed_request.has_value())
-			{
-				std::cerr << "Failed to parse request from fd " << fd << ", skipping.\n";
-				throw std::runtime_error("");
-			}
-			Route_rule			&route = find_correct_route(config, *parsed_request);
-			if (!route.redirection.empty())
-				status = "301 Moved permanently";
-			try
-			{
-				Response	response(&config, &route, &parsed_request.value(), fd, status, envp);
-				response.Reply();
-			}
-			catch(const std::exception& e)
+			// catch parser exception. sign bad request and should close
+			catch(const HttpParseException& e)
 			{
 				std::cerr << e.what() << '\n';
-				Response errorresponse(fd, "500 Internal Server Error");  
-				errorresponse.Reply();
 			}
+			// catch regular exception, sign internal server error and should close
+			
+			// if should close, actually respone based on reply_status, close socket
 			
 		}
-		catch(const std::exception& e)
-		{
-			Response errorresponse(fd, "400 Bad Request");
-			errorresponse.Reply();
-			close_socket(fd, servers, keep_alive);
-		}
-		// if (parsed_request.value().getHeaders().find("Connection")->second == "close")
-		// 	close_socket(fd, servers);
-		if (std::find(keep_alive.begin(), keep_alive.end(), fd) == keep_alive.end())
-			keep_alive.push_back(fd);
-		}
 	}
+
+	}
+
+
+	// {for (const int fd : client_fds)
+	// {
+	// 	std::optional<Request>	parsed_request;
+	// 	try
+	// 	{
+	// 		std::cout << "socket " << std::to_string(fd) << ' ';
+
+	// 		Server					&config = find_active_server(fd, servers);
+	// 		bool					should_close = false;
+	// 		RequestParser			parser;
+	// 		std::string				status;
+	// 		try
+	// 		{
+	// 			parsed_request = receive_data(fd, parser);
+	// 		}
+	// 		catch (const HttpParseException& e)
+	// 		{
+	// 			std::cerr << "Parse error on fd " << fd
+	// 					<< " (status " << e.statusCode() << "): "
+	// 					<< e.what() << '\n';
+	// 			throw std::runtime_error("");
+
+	// 		}
+	// 		catch (const std::exception& e)
+	// 		{
+	// 			std::cerr << "Error handling request on fd " << fd
+	// 					<< ": " << e.what() << '\n';
+	// 			throw std::runtime_error("");
+	// 		}
+	// 		if (!parsed_request.has_value())
+	// 		{
+	// 			std::cerr << "Failed to parse request from fd " << fd << ", skipping.\n";
+	// 			throw std::runtime_error("");
+	// 		}
+	// 		Route_rule			&route = find_correct_route(config, *parsed_request);
+	// 		if (!route.redirection.empty())
+	// 			status = "301 Moved permanently";
+	// 		try
+	// 		{
+	// 			Response	response(&config, &route, &parsed_request.value(), fd, status, envp);
+	// 			response.Reply();
+	// 		}
+	// 		catch(const std::exception& e)
+	// 		{
+	// 			std::cerr << e.what() << '\n';
+	// 			Response errorresponse(fd, "500 Internal Server Error");  
+	// 			errorresponse.Reply();
+	// 		}
+			
+	// 	}
+	// 	catch(const std::exception& e)
+	// 	{
+	// 		Response errorresponse(fd, "400 Bad Request");
+	// 		errorresponse.Reply();
+	// 		close_socket(fd, servers, keep_alive);
+	// 	}
+	// 	// if (parsed_request.value().getHeaders().find("Connection")->second == "close")
+	// 	// 	close_socket(fd, servers);
+	// 	if (std::find(keep_alive.begin(), keep_alive.end(), fd) == keep_alive.end())
+	// 		keep_alive.push_back(fd);
+	// 	}}

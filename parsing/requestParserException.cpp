@@ -2,7 +2,12 @@
 
 HttpParseException::HttpParseException(int status, const std::string& msg) : m_status(status), m_msg(msg) {}
 
-int HttpParseException::statusCode() const noexcept
+ParseError HttpParseException::getError() const noexcept
+{
+	return m_error;
+}
+
+ReplyStatus HttpParseException::getStatus() const noexcept
 {
 	return m_status;
 }
