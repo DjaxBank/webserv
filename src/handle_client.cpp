@@ -164,9 +164,11 @@ void handle_client(std::vector<Server> &servers, fd_set *monitored, std::vector<
 			errorresponse.Reply();
 			std::cout << "closing in handle_client: ";
 			close_socket(fd, servers, keep_alive);
+			return ;
 		}
 		// if (parsed_request.value().getHeaders().find("Connection")->second == "close")
 		// 	close_socket(fd, servers);
+
 		if (std::find(keep_alive.begin(), keep_alive.end(), fd) == keep_alive.end())
 			keep_alive.push_back(fd);
 		}
