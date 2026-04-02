@@ -7,6 +7,7 @@
 #include <iostream>
 #include <unistd.h>
 #include <algorithm>
+#include <ctime>
 #include "Response.hpp"
 
 static std::optional<Request> receive_data(int clientfd, RequestParser &parser)
@@ -16,6 +17,7 @@ static std::optional<Request> receive_data(int clientfd, RequestParser &parser)
 	ssize_t bytes_read = 1;
 	std::string request_raw;
 	std::optional<Request> parsed_request;
+
 	while(bytes_read > 0)
 	{
 		bytes_read = recv(clientfd, buf, 1024, 0);
@@ -74,10 +76,20 @@ void handle_client(std::vector<Server> &servers, fd_set *socket_fds, std::vector
 		serv.sock.client_fd = -1;
 		if (FD_ISSET(serv.sock.get_socket_fd(), socket_fds))
 		{
+			timeval tv;
+			tv.tv_sec = 60;
+			tv.tv_usec = 0; 
 			socklen_t addr_len = sizeof(struct sockaddr_in);
-			serv.sock.client_fd = accept(serv.sock.get_socket_fd(), reinterpret_cast <sockaddr *>(&serv.sock.get_addr()), &addr_len);
+			serv.sock.client_fd = accept(serv.sock.get_socket_fd(), reinterpret_cast <sockaddr *>(&serv.sock.get_addr()), &addr_len); // store somewhere else
+			setsockopt(serv.sock.client_fd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
 			client_fds.push_back(serv.sock.client_fd);
+			std::cout << "new connection " << std::to_string(serv.sock.client_fd) << '\n';
 		}
+	}
+	for (int fd : keep_alive)
+	{
+		if (FD_ISSET(fd, socket_fds))
+			client_fds.push_back(fd);
 	}
 	for (const int fd : client_fds)
 	{
@@ -85,7 +97,7 @@ void handle_client(std::vector<Server> &servers, fd_set *socket_fds, std::vector
 		try
 		{
 			std::cout << "socket " << std::to_string(fd) << ' ';
-			
+
 			Server					&config = find_active_server(fd, servers);
 			RequestParser			parser;
 			std::string				status;
@@ -132,6 +144,11 @@ void handle_client(std::vector<Server> &servers, fd_set *socket_fds, std::vector
 		{
 			Response errorresponse(fd, "400 Bad Request");
 			errorresponse.Reply();
+			std::cout << "Closing connection " << std::to_string(fd) << '\n';
+			close(fd);
+			auto loc = std::find(keep_alive.begin(), keep_alive.end(), fd);
+			if (loc != keep_alive.end())
+				keep_alive.erase(loc);
 		}
 		if (parsed_request.value().getHeaders().find("Connection")->second == "close")
 		{
