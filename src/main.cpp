@@ -28,7 +28,7 @@ static fd_set setup_socket_fds(std::vector<int> &fd_list)
 	return socket_fds;
 }
 
-static void reset_sockets(std::vector<Server> &servers, fd_set &socket_fds, std::vector<int> keep_alive, int &max_fd)
+static void reset_sockets(std::vector<Server> &servers, fd_set &socket_fds, std::vector<int> &keep_alive, int &max_fd)
 {
 	std::vector<int> fd_list;
 
@@ -38,11 +38,7 @@ static void reset_sockets(std::vector<Server> &servers, fd_set &socket_fds, std:
 	while (it != keep_alive.end())
 	{
 		if (fcntl(*it, F_GETFD) == -1)
-		{
-			std::cout << "Closing connection " << std::to_string(*it) << '\n';
-			close(*it);
-			keep_alive.erase(it);
-		}
+			close_socket(*it, servers, keep_alive);
 		else
 		{
 			fd_list.push_back(*it);
