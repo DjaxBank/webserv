@@ -4,6 +4,7 @@
 #include <exception>
 #include <map>
 #include <string>
+#include <vector>
 
 class Socket
 {
@@ -13,7 +14,7 @@ class Socket
 		struct sockaddr_in	addr;
 	public:
 		std::pair<int, std::string> info;
-		int client_fd;
+		std::vector<int> client_fds;
 		Socket() : socket_fd(-1){};
 		Socket(std::pair<int, std::string> sock);
 		Socket(const Socket &other);

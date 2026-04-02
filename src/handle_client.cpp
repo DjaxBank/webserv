@@ -14,11 +14,11 @@ static std::optional<Request> receive_data(int clientfd, RequestParser &parser)
 {
 	char	buf[1024];
 
-	ssize_t bytes_read = 1;
+	ssize_t bytes_read;
 	std::string request_raw;
 	std::optional<Request> parsed_request;
 
-	while(bytes_read > 0)
+	while(1)
 	{
 		bytes_read = recv(clientfd, buf, 1024, 0);
 		if (bytes_read <= 0)
@@ -38,7 +38,7 @@ static Server &find_active_server(int target_fd, std::vector<Server> &servers)
 {
 	for (Server &serv : servers)
 	{
-		if (target_fd == serv.sock.client_fd)
+		if (std::find(serv.sock.client_fds.begin(), serv.sock.client_fds.end(), target_fd) != serv.sock.client_fds.end())
 			return serv;
 	}
 	throw std::runtime_error("");
@@ -47,7 +47,7 @@ static Server &find_active_server(int target_fd, std::vector<Server> &servers)
 static Route_rule &find_correct_route(Server &serv, const Request &request)
 {
 	std::vector<std::string> valid_routes;
-	std::string uri = request.getRawUri();
+	std::string uri = request.getPath();
 	
 	if (uri.empty())
 		throw std::runtime_error("couldn't handle request");
@@ -67,28 +67,46 @@ static Route_rule &find_correct_route(Server &serv, const Request &request)
 	throw std::runtime_error("");
 }
 
-void handle_client(std::vector<Server> &servers, fd_set *socket_fds, std::vector<int> &keep_alive, char **envp)
+void close_socket(int fd, std::vector<Server> &servers, std::vector<int> &keep_alive)
+{
+	std::cout << "Closing connection " << std::to_string(fd) << '\n';
+	close(fd);
+	for (Server &serv : servers)
+	{
+		auto it = std::find(serv.sock.client_fds.begin(), serv.sock.client_fds.end(), fd);
+		if (it != serv.sock.client_fds.end())
+		{
+			serv.sock.client_fds.erase(it);
+			return ;
+		}
+	}
+	auto it = std::find(keep_alive.begin(), keep_alive.end(), fd);
+	if (it != keep_alive.end())
+		keep_alive.erase(it);
+}
+
+void handle_client(std::vector<Server> &servers, fd_set *monitored, std::vector<int> &keep_alive, char **envp)
 {
 	std::vector<int>	client_fds;
 
 	for (Server &serv : servers)
 	{
-		serv.sock.client_fd = -1;
-		if (FD_ISSET(serv.sock.get_socket_fd(), socket_fds))
+		if (FD_ISSET(serv.sock.get_socket_fd(), monitored))
 		{
 			timeval tv;
 			tv.tv_sec = 60;
 			tv.tv_usec = 0; 
 			socklen_t addr_len = sizeof(struct sockaddr_in);
-			serv.sock.client_fd = accept(serv.sock.get_socket_fd(), reinterpret_cast <sockaddr *>(&serv.sock.get_addr()), &addr_len); // store somewhere else
-			setsockopt(serv.sock.client_fd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
-			client_fds.push_back(serv.sock.client_fd);
-			std::cout << "new connection " << std::to_string(serv.sock.client_fd) << '\n';
+			int newfd = accept(serv.sock.get_socket_fd(), reinterpret_cast <sockaddr *>(&serv.sock.get_addr()), &addr_len); // store somewhere else
+			setsockopt(newfd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
+			client_fds.push_back(newfd);
+			serv.sock.client_fds.push_back(newfd);
+			std::cout << "new connection " << std::to_string(newfd) << '\n';
 		}
 	}
 	for (int fd : keep_alive)
 	{
-		if (FD_ISSET(fd, socket_fds))
+		if (FD_ISSET(fd, monitored))
 			client_fds.push_back(fd);
 	}
 	for (const int fd : client_fds)
@@ -144,18 +162,11 @@ void handle_client(std::vector<Server> &servers, fd_set *socket_fds, std::vector
 		{
 			Response errorresponse(fd, "400 Bad Request");
 			errorresponse.Reply();
-			std::cout << "Closing connection " << std::to_string(fd) << '\n';
-			close(fd);
-			auto loc = std::find(keep_alive.begin(), keep_alive.end(), fd);
-			if (loc != keep_alive.end())
-				keep_alive.erase(loc);
+			close_socket(fd, servers, keep_alive);
 		}
-		if (parsed_request.value().getHeaders().find("Connection")->second == "close")
-		{
-			std::cout << "Closing connection " << std::to_string(fd) << '\n';
-			close(fd);
-		}
-		else if (std::find(keep_alive.begin(), keep_alive.end(), fd) == keep_alive.end())
+		// if (parsed_request.value().getHeaders().find("Connection")->second == "close")
+		// 	close_socket(fd, servers);
+		if (std::find(keep_alive.begin(), keep_alive.end(), fd) == keep_alive.end())
 			keep_alive.push_back(fd);
 		}
 	}

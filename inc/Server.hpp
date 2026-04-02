@@ -11,7 +11,6 @@ struct Route_rule
 	std::string						route;
 	std::string						root;
 	std::vector<HttpMethod>			http_methods;
-	std::vector<int>				active_sockets;
 	std::string						redirection;
 	std::string						default_dir_file;
 	bool							directorylisting;
