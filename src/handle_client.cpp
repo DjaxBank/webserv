@@ -77,7 +77,7 @@ void close_socket(int fd, std::vector<Server> &servers, std::vector<int> &keep_a
 		if (it != serv.sock.client_fds.end())
 		{
 			serv.sock.client_fds.erase(it);
-			return ;
+			break;
 		}
 	}
 	auto it = std::find(keep_alive.begin(), keep_alive.end(), fd);
@@ -162,6 +162,7 @@ void handle_client(std::vector<Server> &servers, fd_set *monitored, std::vector<
 		{
 			Response errorresponse(fd, "400 Bad Request");
 			errorresponse.Reply();
+			std::cout << "closing in handle_client: ";
 			close_socket(fd, servers, keep_alive);
 		}
 		// if (parsed_request.value().getHeaders().find("Connection")->second == "close")

@@ -38,7 +38,10 @@ static void reset_sockets(std::vector<Server> &servers, fd_set &socket_fds, std:
 	while (it != keep_alive.end())
 	{
 		if (fcntl(*it, F_GETFD) == -1)
+		{
+			std::cout << "closing in main: ";
 			close_socket(*it, servers, keep_alive);
+		}
 		else
 		{
 			fd_list.push_back(*it);
