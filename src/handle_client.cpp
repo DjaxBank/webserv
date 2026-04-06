@@ -8,9 +8,10 @@
 #include <unistd.h>
 #include <algorithm>
 #include <ctime>
+#include <fcntl.h>
 #include "Response.hpp"
 
-static std::optional<Request> receive_data(int clientfd, RequestParser &parser)
+static std::optional<Request> receive_data(int clientfd, RequestParser &parser, std::vector<Server> &servers,  std::vector<int> &keep_alive)
 {
 	char	buf[1024];
 
@@ -20,7 +21,9 @@ static std::optional<Request> receive_data(int clientfd, RequestParser &parser)
 
 	while(1)
 	{
-		bytes_read = recv(clientfd, buf, 1024, 0);
+		if (fcntl(clientfd, F_GETFD) == -1)
+			close_socket(clientfd, servers, keep_alive);
+		bytes_read = recv(clientfd, buf, 1024, 0); 
 		if (bytes_read <= 0)
 			break;
 		std::string better_buf(buf, bytes_read);
@@ -29,8 +32,7 @@ static std::optional<Request> receive_data(int clientfd, RequestParser &parser)
 		if (parsed_request.has_value())
 			break ;
 	}
-	std::string logging = request_raw.substr(0, request_raw.find(" HTTP/"));
-	std::cout << logging << ' ';
+	std::cout << request_raw.substr(0, request_raw.find(" HTTP/")) << ' ';
 	return parsed_request;
 }
 
@@ -93,12 +95,12 @@ void handle_client(std::vector<Server> &servers, fd_set *monitored, std::vector<
 	{
 		if (FD_ISSET(serv.sock.get_socket_fd(), monitored))
 		{
-			timeval tv;
-			tv.tv_sec = 60;
-			tv.tv_usec = 0; 
+			timeval tv {60, 0};
+			timeval recvtimeout {3, 0};
 			socklen_t addr_len = sizeof(struct sockaddr_in);
 			int newfd = accept(serv.sock.get_socket_fd(), reinterpret_cast <sockaddr *>(&serv.sock.get_addr()), &addr_len); // store somewhere else
 			setsockopt(newfd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
+			setsockopt(newfd, SOL_SOCKET, SO_RCVTIMEO, &recvtimeout, sizeof(recvtimeout));
 			client_fds.push_back(newfd);
 			serv.sock.client_fds.push_back(newfd);
 			std::cout << "new connection " << std::to_string(newfd) << '\n';
@@ -121,7 +123,7 @@ void handle_client(std::vector<Server> &servers, fd_set *monitored, std::vector<
 			std::string				status;
 			try
 			{
-				parsed_request = receive_data(fd, parser);
+				parsed_request = receive_data(fd, parser, servers, keep_alive);
 			}
 			catch (const HttpParseException& e)
 			{
@@ -139,12 +141,14 @@ void handle_client(std::vector<Server> &servers, fd_set *monitored, std::vector<
 			}
 			if (!parsed_request.has_value())
 			{
+				if (fcntl(fd, F_GETFD) == -1)
+					std::cout << "client disconnected!\n";
 				std::cerr << "Failed to parse request from fd " << fd << ", skipping.\n";
 				throw std::runtime_error("");
 			}
 			Route_rule			&route = find_correct_route(config, *parsed_request);
 			if (!route.redirection.empty())
-				status = "301 Moved permanently";
+				status = "301 Moved Permanently";
 			try
 			{
 				Response	response(&config, &route, &parsed_request.value(), fd, status, envp);

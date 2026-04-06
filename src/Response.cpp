@@ -7,7 +7,7 @@
 #include <filesystem>
 std::string Cgi(std::string cgi_program, std::string file, char **envp);
 
-Response::Response(const int fd, std::string status) : fd(fd), status(status) {};
+Response::Response(const int fd, std::string status) : fd(fd), status(status), Date(get_timestr()) {};
 
 Response::Response(const Server *config, const Route_rule *route, const Request *request, const int fd, std::string status, char **envp)
 	: config(config), envp(envp), fd(fd), request(request), route(route), status(status), method(request->getMethod()), Date(get_timestr())
@@ -204,79 +204,88 @@ bool Response::MethodAllowed()
 }
 void Response::SetErrorPages()
 {
-	if (status == "403 Forbidden")
+	if (status == "403 Forbidden" || status == "404 Not Found")
 	{
-		if (config->Forbidden.empty())
+		if (status == "403 Forbidden")
 		{
-			body = R"HTML(<!DOCTYPE html>
-<html lang="en">
-<head>
-	<meta charset="UTF-8" />
-	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-	<title>403 Forbidden</title>
-</head>
-<body>
-	<main class="card">
-		<h1>403</h1>
-		<p>Sorry, you can't access this page.</p>
-	</main>
-</body>
-</html>)HTML";
-		}
-		else
-			ExtractFile(config->Forbidden);
-	}
-	else if (status == "404 Not Found")
-	{
-		if (config->NotFound.empty())
-		{
-			body = R"HTML(<!DOCTYPE html>
-<html lang="en">
+			if (config->Forbidden.empty())
+			{
+				body = R"HTML(<!DOCTYPE html>
+	<html lang="en">
 	<head>
 		<meta charset="UTF-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-		<title>404 Not Found</title>
+		<title>403 Forbidden</title>
 	</head>
 	<body>
 		<main class="card">
-			<h1>404</h1>
-			<p>Sorry, the page you’re looking for doesn’t exist..</p>
+			<h1>403</h1>
+			<p>Sorry, you can't access this page.</p>
 		</main>
 	</body>
-</html>)HTML";
+	</html>)HTML";
+			}
+			else
+				ExtractFile(config->Forbidden);
 		}
-		else
-			ExtractFile(config->NotFound);
+		else if (status == "404 Not Found")
+		{
+			if (config->NotFound.empty())
+			{
+				body = R"HTML(<!DOCTYPE html>
+	<html lang="en">
+		<head>
+			<meta charset="UTF-8" />
+			<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+			<title>404 Not Found</title>
+		</head>
+		<body>
+			<main class="card">
+				<h1>404</h1>
+				<p>Sorry, the page you’re looking for doesn’t exist..</p>
+			</main>
+		</body>
+	</html>)HTML";
+			}
+			else
+				ExtractFile(config->NotFound);
+		}
+	}
+	else
+	{
+		std::string left = R"HTML(<!DOCTYPE html>
+	<html lang="en">
+		<head>
+			<meta charset="UTF-8" />
+			<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+			<title>)HTML";
+		std::string right = R"HTML(</title>
+	</head>
+	</html>)HTML";
+		body = left + status + right;
 	}
 }
 void Response::Reply()
 {
-	if (status != "400 Bad Request")
+	if (status != "400 Bad Request" && !MethodAllowed())
+		status = "405 Method Not Allowed";
+	if (status != "200 OK" && status != "301 Moved Permanently")
+		SetErrorPages();
+	else if (status == "200 OK")
 	{
-		if (!MethodAllowed())
-			status = "405 Method Not Allowed";
-
-		else
+		switch (method)
 		{
-			if (status == "403 Forbidden" || status == "404 Not Found")
-				SetErrorPages();
-			else if (status == "200 OK")
-			{
-				switch (method)
-				{
-					case (HttpMethod::GET):
-						this->GET();
-						break;
-					case (HttpMethod::POST):
-						this->POST();
-						break;
-					case (HttpMethod::DELETE):
-						this->DELETE();
-						break;
-					default:
-						break;
-				}
-			}
+			case (HttpMethod::GET):
+				this->GET();
+				break;
+			case (HttpMethod::POST):
+				this->POST();
+				break;
+			case (HttpMethod::DELETE):
+				this->DELETE();
+				break;
+			default:
+				break;
 		}
 	}
 	std::string	to_send;
@@ -284,12 +293,12 @@ void Response::Reply()
 	std::cout << status << '\n';
 	headers.emplace(headers.begin(), "HTTP/1.1 " + status);
 	headers.emplace_back("Date: " + Date);
-	if (status == "301 Moved permanently")
+	if (status == "301 Moved Permanently")
 		headers.emplace_back("Location: " + route->redirection);
 	if (!content_type.empty())
 		headers.emplace_back("Content-type: " + content_type);
 	headers.emplace_back("content-length: " + std::to_string(body.length()));
-	headers.emplace_back("Connection: keep-alive"); // implement keep-alive logic
+	headers.emplace_back("Connection: keep-alive");
  	for (std::string &header : headers)
 	{
 		to_send += header;
