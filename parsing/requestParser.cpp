@@ -51,18 +51,35 @@ std::string RequestParser::getHeader(const std::string& key) const
 
 /* Accumulates incoming data and validates buffer state
  * @param data: incoming data chunk
- * @return: false if error or need more data, true if ready to parse
+ * @return: false if needs more data, true if complete, throw if error
  * Moves onto parsing when that section's data is ready to process
  */
 bool RequestParser::fetchData(const std::string& data)
 {
-    if (m_state == ParserState::ERROR || m_state == ParserState::COMPLETE)
-        return false;
+    if (m_state == ParserState::ERROR)
+    {
+        throw HttpParseException(
+            ParseError::InternalParserFailure, 
+            ReplyStatus::InternalServerError, 
+            "parseClientRequest called after parser entered ERROR state."
+        );
+    }
+    if (m_state == ParserState::COMPLETE)
+    {
+        throw HttpParseException(
+            ParseError::InternalParserFailure,
+            ReplyStatus::InternalServerError,
+            "parseClientRequest called after parser reached COMPLETE state."
+        );
+    }
     m_buffer += data;
     if (m_state != ParserState::BODY && m_buffer.size() > HTTP_CONSTANT::MAX_TOTAL_HEADER_SIZE)
     {
-        setErrorAndReturn("buffer exceeded max header size", "");
-        return false;
+        throw HttpParseException(
+            ParseError::HeaderSectionTooLarge, 
+            ReplyStatus::RequestHeaderFieldsTooLarge, 
+            "Header fields too large."
+        );
     }
 
     // ADD TIMEOUT CHECK HERE PROBABLY (do we have a time function?)
@@ -91,9 +108,6 @@ std::optional<Request> RequestParser::parseClientRequest(const std::string& data
 {
     if (!fetchData(data))
     {
-        if (m_state == ParserState::ERROR)
-            throw HttpParseException(400, "Error fetching request data");
-        else
             return std::nullopt;
     }
 
@@ -118,7 +132,9 @@ std::optional<Request> RequestParser::parseClientRequest(const std::string& data
             throw HttpParseException(400, "Invalid body");
     }
     if (m_state == ParserState::COMPLETE)
+    {
         return std::make_optional(m_request);
+    }
     else
         return std::nullopt;
 }

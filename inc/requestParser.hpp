@@ -38,15 +38,15 @@ enum class ParseError
 // CONSIDER MOVING TO ITS OWN header file
 enum class ReplyStatus
 {
-    OK = 200,
-    MovedPermanently = 301,
-    BadRequest = 400,
-    RequestTimeout = 408,
-    ContentTooLarge = 413,
-    UriTooLong = 414,
-    RequestHeaderFieldsTooLarge = 431,
-    InternalServerError = 500,
-    NotImplemented = 501
+    OK = 200, // request succeeded, server is retuning requested representation as response
+    MovedPermanently = 301, // Target resource now has a new permanent URI. Cleints should use the new uri (redirect)
+    BadRequest = 400, // server cannot or will not process request due to client error (malformed syntax, invalid frmaing, deceptive routing, etc.)
+    RequestTimeout = 408, // server did not receive a complete request message in time it was prepared to wait
+    ContentTooLarge = 413, // request content is larger thant he serve ris willing or able to process
+    UriTooLong = 414, // target uri is longer than the server is willing to interpret
+    RequestHeaderFieldsTooLarge = 431, // The server refuses to process the request because header fields are too large (single header or aggregate headers).
+    InternalServerError = 500, // server encountered unexpected condiiton that prevented it from fulfilling the request
+    NotImplemented = 501 // server does not support funcitonality required to fulfill the request (unimplemented method)
 };
 
 // HTTP parsing constants
@@ -82,7 +82,7 @@ class HttpParseException : public std::exception
 		ReplyStatus m_status;
 		std::string m_msg;
 	public:
-		HttpParseException(const ParseError& error, const ReplyStatus& status, const std::string& msg);
+		HttpParseException(const ParseError error, const ReplyStatus status, const std::string& msg);
 		ParseError getError() const noexcept;
 		ReplyStatus getStatus() const noexcept;
 		const char* what() const noexcept override;
