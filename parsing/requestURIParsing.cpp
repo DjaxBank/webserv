@@ -13,9 +13,12 @@ bool RequestParser::errorOnScheme(const std::string& copy_uri)
 	pos = copy_uri.find(HTTP_CONSTANT::SCHEME_SUFFIX);
 	if (pos != std::string::npos)
 	{
-		setErrorAndReturn("malformed request: scheme detected", copy_uri);
 		m_state = ParserState::ERROR;
-		return false;
+		throw HttpParseException(
+            ParseError::InvalidUriSyntax, 
+            ReplyStatus::BadRequest,
+            "Malformed request: scheme detected."    
+        );
 	}
 	return true;
 }
@@ -24,9 +27,12 @@ bool RequestParser::errorOnAuthority(const std::string& copy_uri)
 {
 	if (copy_uri.compare(0, 2, "//") == 0)
 	{
-		setErrorAndReturn("malformed request: authority detected/incorrect file path", copy_uri);
 		m_state = ParserState::ERROR;
-		return false;
+		throw HttpParseException(
+            ParseError::InvalidUriSyntax, 
+            ReplyStatus::BadRequest,
+            "Malformed request: Authority detected/incorrect file path."    
+        );
 	}
 	return true;
 }
@@ -42,9 +48,12 @@ bool RequestParser::errorOnUserInfo(const std::string& copy_uri)
 	pos = buffer.find('@');
 	if (pos != std::string::npos)
 	{
-		setErrorAndReturn("malformed request: userinfo detected", copy_uri);
 		m_state = ParserState::ERROR;
-		return false;
+		throw HttpParseException(
+            ParseError::InvalidUriSyntax, 
+            ReplyStatus::BadRequest,
+            "Malformed request: Userinfo detected."    
+        );
 	}
 	return true;
 }
@@ -53,9 +62,12 @@ bool RequestParser::pathTooLong(const std::string& copy_uri)
 {
 	if (copy_uri.length() > 255)
 	{
-		setErrorAndReturn("malformed request: path too long (>255)", copy_uri);
 		m_state = ParserState::ERROR;
-		return false;
+		throw HttpParseException(
+            ParseError::UriTooLong, 
+            ReplyStatus::UriTooLong,
+            "Malformed request: Path too long."    
+        );
 	}
 	return true;
 }
@@ -64,9 +76,12 @@ bool RequestParser::errorOnEmpty(const std::string& copy_uri)
 {
 	if (copy_uri.empty() == true)
 	{
-		setErrorAndReturn("malformed request: uri cannot be empty", copy_uri);
 		m_state = ParserState::ERROR;
-		return false;
+		throw HttpParseException(
+            ParseError::InvalidUriSyntax, 
+            ReplyStatus::BadRequest,
+            "Malformed request: Uri cannot be empty."    
+        );
 	}
 	return true;
 }
@@ -96,9 +111,12 @@ bool RequestParser::validateLeadingSlash(const std::string& copy_uri)
 {
 	if (copy_uri.front() != '/')
 	{
-		setErrorAndReturn("malformed request: no leading slash found", copy_uri);
 		m_state = ParserState::ERROR;
-		return false;
+		throw HttpParseException(
+            ParseError::InvalidUriSyntax, 
+            ReplyStatus::BadRequest,
+            "Malformed request: No leading slash found."    
+        );
 	}
 	return true;
 }
@@ -107,9 +125,12 @@ bool RequestParser::rejectNullBytes(std::string& parsed_uri)
 {
 	if (parsed_uri.find("%00") != std::string::npos || parsed_uri.find('\0') != std::string::npos)
 	{
-		setErrorAndReturn("malformed request: nullbyte found in path", parsed_uri);
 		m_state = ParserState::ERROR;
-		return false;
+		throw HttpParseException(
+            ParseError::InvalidUriSyntax, 
+            ReplyStatus::BadRequest,
+            "Malformed request: Nullbyte found in path."    
+        );
 	}
 	return true;
 }
@@ -169,6 +190,12 @@ bool RequestParser::validateHexBytes(std::string& parsed_uri)
 		{
 			if (static_cast<size_t>(i+2) >= parsed_uri.length())
 			{
+				m_state = ParserState::ERROR;
+				throw HttpParseException(
+        		    ParseError::InvalidUriSyntax, 
+        		    ReplyStatus::BadRequest,
+        		    "Malformed request: Hexbyte intersects with end of uri."    
+        		);
 				setErrorAndReturn("malformed request: hexbyte intersects with end of uri", parsed_uri);
 				m_state = ParserState::ERROR;
 				return false;

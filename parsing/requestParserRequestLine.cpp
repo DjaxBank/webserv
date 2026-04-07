@@ -13,16 +13,22 @@ bool RequestParser::extractMethod(std::string& request_line)
     size_t pos = request_line.find(' ');
     if (pos == std::string::npos)
     {
-        setErrorAndReturn("no space after method", request_line);
-        return false;
+        throw HttpParseException(
+            ParseError::InvalidRequestLine, 
+            ReplyStatus::BadRequest,
+            "No space after method"    
+        );
     }
     
     std::string method_token = request_line.substr(0, pos);
     HttpMethod method = string_tomethod(method_token);
     if (method == HttpMethod::NONE)
     {
-        setErrorAndReturn("invalid method", request_line);
-        return false;
+        throw HttpParseException(
+            ParseError::UnsupportedMethod, 
+            ReplyStatus::BadRequest,
+            "Unsupported Method."    
+        );
     }
     
     m_request.setMethod(method);
@@ -39,21 +45,22 @@ bool RequestParser::extractTarget(std::string& request_line)
     size_t pos = request_line.find(' ');
     if (pos == std::string::npos)
     {
-        setErrorAndReturn("no space after target", request_line);
-        return false;
+        throw HttpParseException(
+            ParseError::InvalidRequestLine, 
+            ReplyStatus::BadRequest,
+            "No space after target"    
+        );
     }
     
     std::string target_token = request_line.substr(0, pos);
     if (target_token.empty())
     {
-        setErrorAndReturn("empty target", request_line);
-        return false;
+        throw HttpParseException(
+            ParseError::InvalidRequestLine, 
+            ReplyStatus::BadRequest,
+            "Empty target."    
+        );
     }
-    
-    // TODO: understand it its better to validate URI format more thoroughly here
-    // Currently only checks if empty, but malformed URIs could cause issues downstream
-    // but maybe its better to deal with them then?
-    
     m_request.setRawUri(target_token);
     request_line = request_line.substr(pos + 1);
     return true;
@@ -67,16 +74,20 @@ bool RequestParser::extractVersion(const std::string& version_token)
 {
     if (version_token.empty() || version_token.find(' ') != std::string::npos)
     {
-        setErrorAndReturn("version missing or has spaces", version_token);
-        return false;
+        throw HttpParseException(
+            ParseError::InvalidHttpVersion, 
+            ReplyStatus::BadRequest,
+            "Version missing or spaces present in version."    
+        );
     }
-    
     if (!validateHTTPVersion(version_token))
     {
-        setErrorAndReturn("invalid HTTP version", version_token);
-        return false;
+        throw HttpParseException(
+            ParseError::InvalidHttpVersion, 
+            ReplyStatus::BadRequest,
+            "Invalid HTTP versiom."    
+        );
     }
-    
     m_request.setVersion(string_toversion(version_token));
     return true;
 }

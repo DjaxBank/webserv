@@ -13,8 +13,11 @@ bool RequestParser::extractHeadersSection(std::string& out_headers_section)
     
     if (header_end > HTTP_CONSTANT::MAX_TOTAL_HEADER_SIZE)
     {
-        setErrorAndReturn("total header size too large", "");
-        return false;
+        throw HttpParseException(
+            ParseError::HeaderSectionTooLarge, 
+            ReplyStatus::RequestHeaderFieldsTooLarge, 
+            "Header fields too large."
+        );
     }
     
     out_headers_section = m_buffer.substr(0, header_end);
@@ -83,8 +86,11 @@ bool RequestParser::parseHeaderLine(const std::string& header_line)
     
     if (header_line.length() > HTTP_CONSTANT::MAX_HEADER_SIZE)
     {
-        setErrorAndReturn("header line too long", header_line);
-        return false;
+        throw HttpParseException(
+            ParseError::HeaderSectionTooLarge, 
+            ReplyStatus::RequestHeaderFieldsTooLarge, 
+            "Header line too large."
+        );
     }
     
     std::string key = extractKey(header_line);
@@ -92,14 +98,20 @@ bool RequestParser::parseHeaderLine(const std::string& header_line)
     {
         if (!check_safe_key_char(c))
         {
-            setErrorAndReturn("invalid char found in header key", header_line);
-            return false;
+            throw HttpParseException(
+                ParseError::InvalidHeaderSyntax, 
+                ReplyStatus::BadRequest, 
+                "Header contains UNSAFE character."
+            );
         }
     }
     if (key.empty())
     {
-        setErrorAndReturn("invalid header key", header_line);
-        return false;
+        throw HttpParseException(
+            ParseError::InvalidHeaderSyntax, 
+            ReplyStatus::BadRequest, 
+            "Header contains UNSAFE character."
+        );
     }
     
     std::string value = extractValue(header_line);
@@ -107,8 +119,11 @@ bool RequestParser::parseHeaderLine(const std::string& header_line)
     {
         if (!check_safe_value_char(c))
         {
-            setErrorAndReturn("invalid char found in header value", header_line);
-            return false;
+            throw HttpParseException(
+                ParseError::InvalidHeaderSyntax, 
+                ReplyStatus::BadRequest, 
+                "Header contains UNSAFE character."
+            );
         }
     }
     m_request.addHeader(key, value);
@@ -151,7 +166,13 @@ bool RequestParser::parseBodyMetadata()
     const std::string c_length = getHeader("Content-Length");
 
     if (!t_encoding.empty() && !c_length.empty())
-        return fail("transfer encoding and content length present in header", "");
+    {
+        throw HttpParseException(
+                ParseError::ConflictingLengthFraming, 
+                ReplyStatus::BadRequest, 
+                "Transfer-Encoding and Content-Length are both present."
+            );
+    }
 
     if (!t_encoding.empty())
     {
@@ -163,14 +184,24 @@ bool RequestParser::parseBodyMetadata()
             m_state = ParserState::BODY;
             return true;
         }
-        return fail("unsupported transfer-encoding method", "");
+        throw HttpParseException(
+                ParseError::UnsupportedTransferEncoding, 
+                ReplyStatus::BadRequest, 
+                "Unsupported Transfer Encoding method."
+            );
     }
 
     if (!c_length.empty())
     {
         size_t content_len;
         if (!validateContentLength(c_length, content_len))
-            return fail("malformed content-length", "");
+        {
+            throw HttpParseException(
+                ParseError::InvalidContentLength, 
+                ReplyStatus::BadRequest, 
+                "Invalid Content Length."
+            );
+        }
         // TODO: consider rejecting oversized bodies here instead of waiting until parseContentLengthBody
         // would save memory by not buffering data we'll reject anyway
         m_request.setContentLen(content_len);
@@ -190,16 +221,44 @@ bool RequestParser::validateCRLF(const std::string &string)
         {
             if (i == 0 || string[i - 1] != '\r')
             {
-                setErrorAndReturn("found bare '\n' in header", string);
-                return false;
+                if (m_state == ParserState::REQUEST_LINE)
+                {
+                    throw HttpParseException(
+                        ParseError::InvalidRequestLine, 
+                        ReplyStatus::BadRequest, 
+                        "Found bare '\n' in request line."
+                    );
+                }
+                else
+                {
+                    throw HttpParseException(
+                        ParseError::InvalidHeaderSyntax, 
+                        ReplyStatus::BadRequest, 
+                        "Found bare '\n' in header line."
+                    );
+                }
             }
         }
         if (string[i] == '\r')
         {
             if (i + 1 >= string.size() || string[i + 1] != '\n')
             {
-                setErrorAndReturn("found bare '\r' in header", string);
-                return false;
+                if (m_state == ParserState::REQUEST_LINE)
+                {
+                    throw HttpParseException(
+                        ParseError::InvalidRequestLine, 
+                        ReplyStatus::BadRequest, 
+                        "Found bare '\r' in request line."
+                    );
+                }
+                else
+                {
+                    throw HttpParseException(
+                        ParseError::InvalidHeaderSyntax, 
+                        ReplyStatus::BadRequest, 
+                        "Found bare '\r' in header line."
+                    );
+                }
             }    
         }
     }
