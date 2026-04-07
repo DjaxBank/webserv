@@ -171,7 +171,7 @@ constexpr static std::array<bool, 256> safe_decode_lookup = []()
 	const std::string_view safe_chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~";
 	for (uint8_t i : safe_chars)
 	{
-		result[i] = true; 
+		result[i] = true;
 	}
 	return result;
 }();
@@ -196,15 +196,15 @@ bool RequestParser::validateHexBytes(std::string& parsed_uri)
         		    ReplyStatus::BadRequest,
         		    "Malformed request: Hexbyte intersects with end of uri."    
         		);
-				setErrorAndReturn("malformed request: hexbyte intersects with end of uri", parsed_uri);
-				m_state = ParserState::ERROR;
-				return false;
 			}
 			if (!isxdigit(static_cast<unsigned char>(parsed_uri[i+1])) || !isxdigit(static_cast<unsigned char>(parsed_uri[i+2])))
 			{
-				setErrorAndReturn("malformed request: hexbyte improperly formed", parsed_uri);
 				m_state = ParserState::ERROR;
-				return false;
+				throw HttpParseException(
+        		    ParseError::InvalidUriSyntax, 
+        		    ReplyStatus::BadRequest,
+        		    "Malformed request: Hexbyte improperly formed."    
+        		);
 			}
 			char decoded_char = decodeByte(parsed_uri[i+1], parsed_uri[i+2]);
 			if (check_safe_decode(decoded_char))

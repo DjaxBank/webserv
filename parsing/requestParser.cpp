@@ -107,34 +107,15 @@ bool RequestParser::fetchData(const std::string& data)
 std::optional<Request> RequestParser::parseClientRequest(const std::string& data)
 {
     if (!fetchData(data))
-    {
-            return std::nullopt;
-    }
-
+        return std::nullopt;
     if (m_state == ParserState::REQUEST_LINE)
-    {
         parseRequestLine();
-        if (m_state == ParserState::ERROR)
-            throw HttpParseException(400, "Invalid request line");
-    }
-
     if (m_state == ParserState::HEADERS)
-    {
         parseHeaders();
-        if (m_state == ParserState::ERROR)
-            throw HttpParseException(400, "Invalid headers");
-    }
-
     if (m_state == ParserState::BODY)
-    {
         parseBody();
-        if (m_state == ParserState::ERROR)
-            throw HttpParseException(400, "Invalid body");
-    }
     if (m_state == ParserState::COMPLETE)
-    {
         return std::make_optional(m_request);
-    }
     else
         return std::nullopt;
 }

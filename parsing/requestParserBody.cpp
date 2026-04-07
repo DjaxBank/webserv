@@ -20,15 +20,21 @@ bool RequestParser::parseChunkSize(const std::string& hex_value, size_t& out_siz
 {
     if (hex_value.empty())
     {
-        setErrorAndReturn("empty chunk size", "");
-        return false;
+        HttpParseException(
+                ParseError::InvalidChunkedFraming, 
+                ReplyStatus::BadRequest, 
+                "Malformed Chunk: Empty chunk size."
+            );
     }
     for (unsigned char c : hex_value)
     {
         if (!std::isxdigit(c))
         {
-            setErrorAndReturn("invalid hex character in chunk size", hex_value);
-            return false;
+            HttpParseException(
+                ParseError::InvalidChunkedFraming, 
+                ReplyStatus::BadRequest, 
+                "Malformed Chunk: Invalid hex character in chunk size"
+            );
         }
     }
     
@@ -38,19 +44,28 @@ bool RequestParser::parseChunkSize(const std::string& hex_value, size_t& out_siz
     }
     catch (const std::invalid_argument&)
     {
-        setErrorAndReturn("malformed chunk size", hex_value);
-        return false;
+        HttpParseException(
+                ParseError::InvalidChunkedFraming, 
+                ReplyStatus::BadRequest, 
+                "Malformed Chunk: Malformed chunk size."
+            );
     }
     catch (const std::out_of_range&)
     {
-        setErrorAndReturn("chunk size out of range", "");
-        return false;
+        HttpParseException(
+                ParseError::InvalidChunkedFraming, 
+                ReplyStatus::BadRequest, 
+                "Malformed Chunk: Chunk size out of range."
+            );
     }
     
     if (out_size > HTTP_CONSTANT::MAX_CHUNK_SIZE)
     {
-        setErrorAndReturn("chunk size too large", "");
-        return false;
+        HttpParseException(
+                ParseError::InvalidChunkedFraming, 
+                ReplyStatus::BadRequest, 
+                "Malformed Chunk: Chunk size too large."
+            );
     }
     
     return true;
@@ -61,8 +76,11 @@ bool RequestParser::extractChunkData(const std::string& chunked_section, size_t&
 {
     if (pos + chunk_size + HTTP_CONSTANT::CRLF_LENGTH > chunked_section.length())
     {
-        setErrorAndReturn("went past chunked_sections length: chunk data incomplete", "");
-        return false;
+        HttpParseException(
+                ParseError::InvalidChunkedFraming, 
+                ReplyStatus::BadRequest, 
+                "Got past chunked_sections length: chunk data incomplete."
+            );
     }
     
     std::string chunk_data = chunked_section.substr(pos, chunk_size);
@@ -71,15 +89,21 @@ bool RequestParser::extractChunkData(const std::string& chunked_section, size_t&
     
     if (chunked_section.compare(pos, HTTP_CONSTANT::CRLF_LENGTH, HTTP_CONSTANT::CRLF) != 0)
     {
-        setErrorAndReturn("chunk missing trailing CRLF", "");
-        return false;
+        HttpParseException(
+                ParseError::InvalidChunkedFraming, 
+                ReplyStatus::BadRequest, 
+                "Malformed Chunk: missing CRLF after size."
+            );
     }
     pos += HTTP_CONSTANT::CRLF_LENGTH;
     
     if (m_request.getBody().size() > HTTP_CONSTANT::MAX_BODY_SIZE)
     {
-        setErrorAndReturn("body too large", "");
-        return false;
+        HttpParseException(
+                ParseError::BodyTooLarge, 
+                ReplyStatus::ContentTooLarge, 
+                "Body too large."
+            );
     }
     
     return true;
@@ -103,8 +127,13 @@ void RequestParser::parseChunkedBody()
     {
         size_t chunk_size_line_end = chunked_section.find(HTTP_CONSTANT::CRLF, pos);
         if (chunk_size_line_end == std::string::npos)
-            return setErrorAndReturn("malformed chunk: missing CRLF after size", "");
-        
+        {
+            HttpParseException(
+                ParseError::InvalidChunkedFraming, 
+                ReplyStatus::BadRequest, 
+                "Malformed Chunk: missing CRLF after size."
+            );
+        }
         std::string chunk_line = chunked_section.substr(pos, chunk_size_line_end - pos);
         std::string hex_value = stripChunkExtensions(chunk_line);
         size_t chunk_size = 0;
@@ -118,10 +147,6 @@ void RequestParser::parseChunkedBody()
         if (!extractChunkData(chunked_section, pos, chunk_size))
             return;
     }
-    
-    // TODO: see if i need to handle trailer headers after final chunk
-    // After "0\r\n" there can be additional headers before the final "\r\n"
-    // pretty sure I saw I can ignore them earlier but double check
     
     m_state = ParserState::COMPLETE;
 }
@@ -140,7 +165,13 @@ void RequestParser::parseContentLengthBody()
         return;
     
     if (content_length > HTTP_CONSTANT::MAX_BODY_SIZE)
-        return setErrorAndReturn("body too large", "");
+    {
+        HttpParseException(
+                ParseError::BodyTooLarge, 
+                ReplyStatus::ContentTooLarge, 
+                "Body too large."
+            );
+    }
     
     std::string body_data = m_buffer.substr(0, content_length);
     m_buffer.erase(0, content_length);
