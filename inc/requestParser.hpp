@@ -82,7 +82,7 @@ class HttpParseException : public std::exception
 		ReplyStatus m_status;
 		std::string m_msg;
 	public:
-		HttpParseException(int status, const std::string& msg);
+		HttpParseException(const ParseError& error, const ReplyStatus& status, const std::string& msg);
 		ParseError getError() const noexcept;
 		ReplyStatus getStatus() const noexcept;
 		const char* what() const noexcept override;
