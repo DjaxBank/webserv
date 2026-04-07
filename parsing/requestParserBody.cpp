@@ -22,7 +22,7 @@ bool RequestParser::parseChunkSize(const std::string& hex_value, size_t& out_siz
     {
         HttpParseException(
                 ParseError::InvalidChunkedFraming, 
-                ReplyStatus::BadRequest, 
+                ReplyStatus::BadRequest,
                 "Malformed Chunk: Empty chunk size."
             );
     }
