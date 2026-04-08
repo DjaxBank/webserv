@@ -79,7 +79,7 @@ void close_socket(int fd, std::vector<Server> &servers, std::vector<int> &keep_a
 		if (it != serv.sock.client_fds.end())
 		{
 			serv.sock.client_fds.erase(it);
-			return ;
+			break ;
 		}
 	}
 	auto it = std::find(keep_alive.begin(), keep_alive.end(), fd);
@@ -116,8 +116,7 @@ void handle_client(std::vector<Server> &servers, fd_set *monitored, std::vector<
 		std::optional<Request>	parsed_request;
 		try
 		{
-			std::cout << "socket " << std::to_string(fd) << ' ';
-
+			
 			Server					&config = find_active_server(fd, servers);
 			RequestParser			parser;
 			std::string				status;
@@ -130,21 +129,25 @@ void handle_client(std::vector<Server> &servers, fd_set *monitored, std::vector<
 				std::cerr << "Parse error on fd " << fd
 						<< " (status " << e.statusCode() << "): "
 						<< e.what() << '\n';
-				throw std::runtime_error("");
-
-			}
-			catch (const std::exception& e)
-			{
-				std::cerr << "Error handling request on fd " << fd
+						throw std::runtime_error("");
+						
+					}
+					catch (const std::exception& e)
+					{
+						std::cerr << "Error handling request on fd " << fd
 						<< ": " << e.what() << '\n';
-				throw std::runtime_error("");
-			}
-			if (!parsed_request.has_value())
-			{
-				if (fcntl(fd, F_GETFD) == -1)
-					std::cout << "client disconnected!\n";
-				std::cerr << "Failed to parse request from fd " << fd << ", skipping.\n";
-				throw std::runtime_error("");
+						throw std::runtime_error("");
+					}
+					if (!parsed_request.has_value())
+					{
+						char buf;
+						if (recv(fd, &buf, 1, 0) <= 0)
+						{
+							close_socket(fd, servers, keep_alive);
+							continue;
+						}
+						std::cerr << "Failed to parse request from fd " << fd << ", skipping.\n";
+						throw std::runtime_error("");
 			}
 			Route_rule			&route = find_correct_route(config, *parsed_request);
 			if (!route.redirection.empty())
@@ -167,6 +170,7 @@ void handle_client(std::vector<Server> &servers, fd_set *monitored, std::vector<
 			Response errorresponse(fd, "400 Bad Request");
 			errorresponse.Reply();
 			close_socket(fd, servers, keep_alive);
+			continue;
 		}
 		// if (parsed_request.value().getHeaders().find("Connection")->second == "close")
 		// 	close_socket(fd, servers);
