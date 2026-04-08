@@ -289,8 +289,8 @@ void Response::Reply()
 		}
 	}
 	std::string	to_send;
-
-	std::cout << status << '\n';
+	std::cout << status << ' ';
+	std::cout << "(connection " << std::to_string(fd) << ")\n";
 	headers.emplace(headers.begin(), "HTTP/1.1 " + status);
 	headers.emplace_back("Date: " + Date);
 	if (status == "301 Moved Permanently")
