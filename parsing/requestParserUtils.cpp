@@ -79,25 +79,6 @@ void handle_method(HttpMethod method)
     }
 }
 
-/* Sets parser state to ERROR and logs debug info
- * @param reason: optional error description
- * @param line: the problematic line being parsed
- */
-void RequestParser::setErrorAndReturn(const char* reason, const std::string& line)
-{
-    std::cerr << "[ParserError] state=" << static_cast<int>(m_state)
-              << " reason=\"" << (reason ? reason : "") << "\""
-              << " line=\"" << line << std::endl;
-    m_state = ParserState::ERROR;
-}
-
-/* Wrapper for parsing failures */
-bool RequestParser::fail(const char* reason, const std::string& line)
-{
-    setErrorAndReturn(reason, line);
-    return false;
-}
-
 /* Trims header values of leading/trailing whitespace */
 std::string RequestParser::trimValue(const std::string& value)
 {
@@ -173,6 +154,7 @@ void RequestParser::validateContentLength(const std::string& value, size_t& out_
 {
     if (value.empty())
     {
+        m_state = ParserState::ERROR;
         throw HttpParseException(
                 ParseError::InvalidContentLength, 
                 ReplyStatus::BadRequest, 
@@ -184,6 +166,7 @@ void RequestParser::validateContentLength(const std::string& value, size_t& out_
     {
         if (!std::isdigit(c))
         {
+            m_state = ParserState::ERROR;
             throw HttpParseException(
                 ParseError::InvalidContentLength, 
                 ReplyStatus::BadRequest, 
@@ -198,6 +181,7 @@ void RequestParser::validateContentLength(const std::string& value, size_t& out_
     }
     catch (const std::invalid_argument&)
     {
+        m_state = ParserState::ERROR;
         throw HttpParseException(
                 ParseError::InvalidContentLength, 
                 ReplyStatus::BadRequest, 
@@ -206,6 +190,7 @@ void RequestParser::validateContentLength(const std::string& value, size_t& out_
     }
     catch (const std::out_of_range&)
     {
+        m_state = ParserState::ERROR;
         throw HttpParseException(
                 ParseError::BodyTooLarge, 
                 ReplyStatus::ContentTooLarge, 
@@ -215,6 +200,7 @@ void RequestParser::validateContentLength(const std::string& value, size_t& out_
     
     if (out_length > HTTP_CONSTANT::MAX_BODY_SIZE)
     {
+        m_state = ParserState::ERROR;
         throw HttpParseException(
                 ParseError::BodyTooLarge, 
                 ReplyStatus::ContentTooLarge, 
@@ -224,17 +210,17 @@ void RequestParser::validateContentLength(const std::string& value, size_t& out_
 }
 
 /* Enforces HTTP/1.1 requiring the "Host" header */
-bool RequestParser::validateRequiredHeaders()
+void RequestParser::validateRequiredHeaders()
 {
     if (m_request.getVersion() == HttpVersion::HTTP_1_1 && getHeader("Host").empty())
     {
+        m_state = ParserState::ERROR;
         throw HttpParseException(
             ParseError::MissingHostHeader,
             ReplyStatus::BadRequest,
             "Missing host header."
         );
     }
-    return true;
 }
 
 /* Prints detailed parser state and request contents for debugging

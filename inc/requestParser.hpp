@@ -113,43 +113,41 @@ class RequestParser
 		void parseBody();
 		void parseContentLengthBody();
 		void parseChunkedBody();
-		void setErrorAndReturn(const char* reason = "", const std::string& line = "");
 		bool extractLineToken(std::string& source, std::string& out_token);
-		bool extractMethod(std::string& request_line);
-		bool extractTarget(std::string& request_line);
-		bool extractVersion(const std::string& version_token);
+		void extractMethod(std::string& request_line);
+		void extractTarget(std::string& request_line);
+		void extractVersion(const std::string& version_token);
 		bool extractHeadersSection(std::string& out_headers_section);
-		bool validateCRLF(const std::string &headers);
-        bool parseHeaderLine(const std::string& header_line);
-        bool processHeaderLines(const std::string& headers_section);
-		bool validateRequiredHeaders();
-		bool fail(const char* reason = "", const std::string& line = "");
-		bool parseBodyMetadata();
+		void validateCRLF(const std::string &headers);
+        void parseHeaderLine(const std::string& header_line);
+        void processHeaderLines(const std::string& headers_section);
+		void validateRequiredHeaders();
+		void parseBodyMetadata();
 		bool validateHTTPVersion(const std::string& version);
 		void validateContentLength(const std::string& value, size_t& out_length);
-		bool parseChunkSize(const std::string& hex_value, size_t& out_size);
-		bool extractChunkData(const std::string& chunked_section, size_t& pos, size_t chunk_size);
+		void parseChunkSize(const std::string& hex_value, size_t& out_size);
+		void extractChunkData(const std::string& chunked_section, size_t& pos, size_t chunk_size);
 		std::string extractKey(const std::string& header_token);
         std::string extractValue(const std::string& header_token);
         std::string trimValue(const std::string& value);
 
 		// implementing URI parsing below
-		bool parseURI(void);
-		bool pathTooLong(const std::string& working_uri);
-		bool validateLeadingSlash(const std::string& working_uri);
-		bool errorOnScheme(const std::string& working_uri);
-		bool errorOnAuthority(const std::string& working_uri);
-		bool errorOnEmpty(const std::string& working_uri);
-		bool errorOnUserInfo(const std::string& working_uri);
-		bool storeQuery(std::string& working_uri);
+		void parseURI(void);
+		void pathTooLong(const std::string& working_uri);
+		void validateLeadingSlash(const std::string& working_uri);
+		void errorOnScheme(const std::string& working_uri);
+		void errorOnAuthority(const std::string& working_uri);
+		void errorOnEmpty(const std::string& working_uri);
+		void errorOnUserInfo(const std::string& working_uri);
+		void storeQuery(std::string& working_uri);
 		void trimFragment(std::string& working_uri);
 
 		// normalize funcs
-		bool normalizeURI(std::string& parsed_uri);
-		bool rejectNullBytes(std::string& parsed_uri);
-		bool validateHexBytes(std::string& parsed_uri);
+		void normalizeURI(std::string& parsed_uri);
+		void rejectNullBytes(std::string& parsed_uri);
+		void validateHexBytes(std::string& parsed_uri);
 		char decodeByte(char c1, char c2);
-		bool normalizePath(std::string& parsed_uri);
+		void normalizePath(std::string& parsed_uri);
 };
 
 #endif
