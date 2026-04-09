@@ -169,15 +169,27 @@ bool RequestParser::validateHTTPVersion(const std::string& version)
 /* Helper function to validate content-length header
     @param value is the value of the content-length key pair
     @param out_length a size_t value to store the content length in after parsing */
-bool RequestParser::validateContentLength(const std::string& value, size_t& out_length)
+void RequestParser::validateContentLength(const std::string& value, size_t& out_length)
 {
     if (value.empty())
-        return false;
+    {
+        throw HttpParseException(
+                ParseError::InvalidContentLength, 
+                ReplyStatus::BadRequest, 
+                "Invalid content length."
+            );
+    }
 
     for (unsigned char c : value)
     {
         if (!std::isdigit(c))
-            return false;
+        {
+            throw HttpParseException(
+                ParseError::InvalidContentLength, 
+                ReplyStatus::BadRequest, 
+                "Invalid content length."
+            );
+        }
     }
 
     try
@@ -186,24 +198,42 @@ bool RequestParser::validateContentLength(const std::string& value, size_t& out_
     }
     catch (const std::invalid_argument&)
     {
-        return false;
+        throw HttpParseException(
+                ParseError::InvalidContentLength, 
+                ReplyStatus::BadRequest, 
+                "Invalid content length."
+            );
     }
     catch (const std::out_of_range&)
     {
-        return false;
+        throw HttpParseException(
+                ParseError::BodyTooLarge, 
+                ReplyStatus::ContentTooLarge, 
+                "Body too large."
+            );
     }
     
     if (out_length > HTTP_CONSTANT::MAX_BODY_SIZE)
-        return false;
-    
-    return true;
+    {
+        throw HttpParseException(
+                ParseError::BodyTooLarge, 
+                ReplyStatus::ContentTooLarge, 
+                "Body too large."
+            );
+    }
 }
 
 /* Enforces HTTP/1.1 requiring the "Host" header */
 bool RequestParser::validateRequiredHeaders()
 {
     if (m_request.getVersion() == HttpVersion::HTTP_1_1 && getHeader("Host").empty())
-        return fail("missing Host header", "");
+    {
+        throw HttpParseException(
+            ParseError::MissingHostHeader,
+            ReplyStatus::BadRequest,
+            "Missing host header."
+        );
+    }
     return true;
 }
 
