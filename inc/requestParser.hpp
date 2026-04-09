@@ -126,7 +126,7 @@ class RequestParser
 		bool fail(const char* reason = "", const std::string& line = "");
 		bool parseBodyMetadata();
 		bool validateHTTPVersion(const std::string& version);
-		bool validateContentLength(const std::string& value, size_t& out_length);
+		void validateContentLength(const std::string& value, size_t& out_length);
 		bool parseChunkSize(const std::string& hex_value, size_t& out_size);
 		bool extractChunkData(const std::string& chunked_section, size_t& pos, size_t chunk_size);
 		std::string extractKey(const std::string& header_token);

@@ -85,7 +85,7 @@ bool RequestParser::extractVersion(const std::string& version_token)
         throw HttpParseException(
             ParseError::InvalidHttpVersion, 
             ReplyStatus::BadRequest,
-            "Invalid HTTP versiom."    
+            "Invalid HTTP version."    
         );
     }
     m_request.setVersion(string_toversion(version_token));

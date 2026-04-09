@@ -194,16 +194,8 @@ bool RequestParser::parseBodyMetadata()
     if (!c_length.empty())
     {
         size_t content_len;
-        if (!validateContentLength(c_length, content_len))
-        {
-            throw HttpParseException(
-                ParseError::InvalidContentLength, 
-                ReplyStatus::BadRequest, 
-                "Invalid Content Length."
-            );
-        }
-        // TODO: consider rejecting oversized bodies here instead of waiting until parseContentLengthBody
-        // would save memory by not buffering data we'll reject anyway
+
+        validateContentLength(c_length, content_len);
         m_request.setContentLen(content_len);
         m_state = ParserState::BODY;
         return true;
