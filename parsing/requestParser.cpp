@@ -58,6 +58,7 @@ bool RequestParser::fetchData(const std::string& data)
 {
     if (m_state == ParserState::ERROR)
     {
+        m_state = ParserState::ERROR;
         throw HttpParseException(
             ParseError::InternalParserFailure, 
             ReplyStatus::InternalServerError, 
@@ -66,6 +67,7 @@ bool RequestParser::fetchData(const std::string& data)
     }
     if (m_state == ParserState::COMPLETE)
     {
+        m_state = ParserState::ERROR;
         throw HttpParseException(
             ParseError::InternalParserFailure,
             ReplyStatus::InternalServerError,
@@ -75,6 +77,7 @@ bool RequestParser::fetchData(const std::string& data)
     m_buffer += data;
     if (m_state != ParserState::BODY && m_buffer.size() > HTTP_CONSTANT::MAX_TOTAL_HEADER_SIZE)
     {
+        m_state = ParserState::ERROR;
         throw HttpParseException(
             ParseError::HeaderSectionTooLarge, 
             ReplyStatus::RequestHeaderFieldsTooLarge, 

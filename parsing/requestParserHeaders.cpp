@@ -13,6 +13,7 @@ bool RequestParser::extractHeadersSection(std::string& out_headers_section)
     
     if (header_end > HTTP_CONSTANT::MAX_TOTAL_HEADER_SIZE)
     {
+        m_state = ParserState::ERROR;
         throw HttpParseException(
             ParseError::HeaderSectionTooLarge, 
             ReplyStatus::RequestHeaderFieldsTooLarge, 
@@ -79,13 +80,14 @@ static bool check_safe_value_char(char c)
  * @param header_line: the line to parse (format: "Key: Value")
  * @return: true if valid and added, false on error
  */
-bool RequestParser::parseHeaderLine(const std::string& header_line)
+void RequestParser::parseHeaderLine(const std::string& header_line)
 {
     if (header_line.empty())
-        return true;
+        return;
     
     if (header_line.length() > HTTP_CONSTANT::MAX_HEADER_SIZE)
     {
+        m_state = ParserState::ERROR;
         throw HttpParseException(
             ParseError::HeaderSectionTooLarge, 
             ReplyStatus::RequestHeaderFieldsTooLarge, 
@@ -98,6 +100,7 @@ bool RequestParser::parseHeaderLine(const std::string& header_line)
     {
         if (!check_safe_key_char(c))
         {
+            m_state = ParserState::ERROR;
             throw HttpParseException(
                 ParseError::InvalidHeaderSyntax, 
                 ReplyStatus::BadRequest, 
@@ -107,6 +110,7 @@ bool RequestParser::parseHeaderLine(const std::string& header_line)
     }
     if (key.empty())
     {
+        m_state = ParserState::ERROR;
         throw HttpParseException(
             ParseError::InvalidHeaderSyntax, 
             ReplyStatus::BadRequest, 
@@ -119,6 +123,7 @@ bool RequestParser::parseHeaderLine(const std::string& header_line)
     {
         if (!check_safe_value_char(c))
         {
+            m_state = ParserState::ERROR;
             throw HttpParseException(
                 ParseError::InvalidHeaderSyntax, 
                 ReplyStatus::BadRequest, 
@@ -127,14 +132,13 @@ bool RequestParser::parseHeaderLine(const std::string& header_line)
         }
     }
     m_request.addHeader(key, value);
-    return true;
 }
 
 /* Processes all header lines in the headers section
  * @param headers_section: complete headers text
  * @return: true if all headers parsed successfully
  */
-bool RequestParser::processHeaderLines(const std::string& headers_section)
+void RequestParser::processHeaderLines(const std::string& headers_section)
 {
     size_t pos = 0;
     while (pos < headers_section.length())
@@ -143,30 +147,27 @@ bool RequestParser::processHeaderLines(const std::string& headers_section)
         if (line_end == std::string::npos)
         {
             std::string header_line = headers_section.substr(pos);
-            if (!parseHeaderLine(header_line))
-                return false;
+            parseHeaderLine(header_line);
             break;
         }
         
         std::string header_line = headers_section.substr(pos, line_end - pos);
-        
-        if (!parseHeaderLine(header_line))
-            return false;
+        parseHeaderLine(header_line);
         
         pos = line_end + HTTP_CONSTANT::CRLF_LENGTH;
     }
-    return true;
 }
 
 /* Parses metadata relating to body information, determines if body is present
     and its related headers are valid */
-bool RequestParser::parseBodyMetadata()
+void RequestParser::parseBodyMetadata()
 {
     const std::string t_encoding = getHeader("Transfer-Encoding");
     const std::string c_length = getHeader("Content-Length");
 
     if (!t_encoding.empty() && !c_length.empty())
     {
+        m_state = ParserState::ERROR;
         throw HttpParseException(
                 ParseError::ConflictingLengthFraming, 
                 ReplyStatus::BadRequest, 
@@ -182,30 +183,32 @@ bool RequestParser::parseBodyMetadata()
         {
             m_request.setChunked(true);
             m_state = ParserState::BODY;
-            return true;
         }
-        throw HttpParseException(
-                ParseError::UnsupportedTransferEncoding, 
-                ReplyStatus::BadRequest, 
-                "Unsupported Transfer Encoding method."
-            );
+        else
+        {
+            m_state = ParserState::ERROR;
+            throw HttpParseException(
+                    ParseError::UnsupportedTransferEncoding, 
+                    ReplyStatus::BadRequest, 
+                    "Unsupported Transfer Encoding method."
+                );
+        }
     }
-
-    if (!c_length.empty())
+    else if (!c_length.empty())
     {
         size_t content_len;
 
         validateContentLength(c_length, content_len);
         m_request.setContentLen(content_len);
         m_state = ParserState::BODY;
-        return true;
     }
-    
-    m_state = ParserState::COMPLETE;
-    return true;
+    else
+    {
+        m_state = ParserState::COMPLETE;
+    }
 }
 
-bool RequestParser::validateCRLF(const std::string &string)
+    void RequestParser::validateCRLF(const std::string &string)
 {
     for (size_t i = 0; i < string.size(); i++)
     {
@@ -215,6 +218,7 @@ bool RequestParser::validateCRLF(const std::string &string)
             {
                 if (m_state == ParserState::REQUEST_LINE)
                 {
+                    m_state = ParserState::ERROR;
                     throw HttpParseException(
                         ParseError::InvalidRequestLine, 
                         ReplyStatus::BadRequest, 
@@ -223,6 +227,7 @@ bool RequestParser::validateCRLF(const std::string &string)
                 }
                 else
                 {
+                    m_state = ParserState::ERROR;
                     throw HttpParseException(
                         ParseError::InvalidHeaderSyntax, 
                         ReplyStatus::BadRequest, 
@@ -237,6 +242,7 @@ bool RequestParser::validateCRLF(const std::string &string)
             {
                 if (m_state == ParserState::REQUEST_LINE)
                 {
+                    m_state = ParserState::ERROR;
                     throw HttpParseException(
                         ParseError::InvalidRequestLine, 
                         ReplyStatus::BadRequest, 
@@ -245,6 +251,7 @@ bool RequestParser::validateCRLF(const std::string &string)
                 }
                 else
                 {
+                    m_state = ParserState::ERROR;
                     throw HttpParseException(
                         ParseError::InvalidHeaderSyntax, 
                         ReplyStatus::BadRequest, 
@@ -254,7 +261,6 @@ bool RequestParser::validateCRLF(const std::string &string)
             }    
         }
     }
-    return true;
 }
 
 /* Parses header of HTTP request and adds them to a request's key:value map */
@@ -264,16 +270,12 @@ void RequestParser::parseHeaders()
     if (!extractHeadersSection(headers_section))
         return;
 
-    if (!validateCRLF(headers_section))
-        return;
+    validateCRLF(headers_section);
     
-    if (!processHeaderLines(headers_section))
-        return;
+    processHeaderLines(headers_section);
     
-    if (!validateRequiredHeaders())
-        return;
+    validateRequiredHeaders();
     
-    if (!parseBodyMetadata())
-        return;
+    parseBodyMetadata();
     
 }

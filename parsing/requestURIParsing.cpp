@@ -6,7 +6,7 @@
 #include <string_view>
 
 
-bool RequestParser::errorOnScheme(const std::string& copy_uri)
+void RequestParser::errorOnScheme(const std::string& copy_uri)
 {
 	size_t pos;
 
@@ -20,10 +20,9 @@ bool RequestParser::errorOnScheme(const std::string& copy_uri)
             "Malformed request: scheme detected."    
         );
 	}
-	return true;
 }
 
-bool RequestParser::errorOnAuthority(const std::string& copy_uri)
+void RequestParser::errorOnAuthority(const std::string& copy_uri)
 {
 	if (copy_uri.compare(0, 2, "//") == 0)
 	{
@@ -34,16 +33,15 @@ bool RequestParser::errorOnAuthority(const std::string& copy_uri)
             "Malformed request: Authority detected/incorrect file path."    
         );
 	}
-	return true;
 }
 
-bool RequestParser::errorOnUserInfo(const std::string& copy_uri)
+void RequestParser::errorOnUserInfo(const std::string& copy_uri)
 {
 	size_t pos;
 
 	pos = copy_uri.find('/', 1);
 	if (pos == std::string::npos)
-		return true;
+		return;
 	std::string buffer(copy_uri.substr(0, pos));
 	pos = buffer.find('@');
 	if (pos != std::string::npos)
@@ -55,10 +53,9 @@ bool RequestParser::errorOnUserInfo(const std::string& copy_uri)
             "Malformed request: Userinfo detected."    
         );
 	}
-	return true;
 }
 
-bool RequestParser::pathTooLong(const std::string& copy_uri)
+void RequestParser::pathTooLong(const std::string& copy_uri)
 {
 	if (copy_uri.length() > 255)
 	{
@@ -69,10 +66,9 @@ bool RequestParser::pathTooLong(const std::string& copy_uri)
             "Malformed request: Path too long."    
         );
 	}
-	return true;
 }
 
-bool RequestParser::errorOnEmpty(const std::string& copy_uri)
+void RequestParser::errorOnEmpty(const std::string& copy_uri)
 {
 	if (copy_uri.empty() == true)
 	{
@@ -83,7 +79,6 @@ bool RequestParser::errorOnEmpty(const std::string& copy_uri)
             "Malformed request: Uri cannot be empty."    
         );
 	}
-	return true;
 }
 void RequestParser::trimFragment(std::string& copy_uri)
 {
@@ -95,19 +90,18 @@ void RequestParser::trimFragment(std::string& copy_uri)
 	copy_uri = copy_uri.substr(0, pos);
 }
 
-bool RequestParser::storeQuery(std::string& copy_uri)
+void RequestParser::storeQuery(std::string& copy_uri)
 {
 	size_t pos;
 
 	pos = copy_uri.find('?');
 	if (pos == copy_uri.npos)
-		return true;
+		return;
 	m_request.setQuery(copy_uri.substr(pos + 1)); 
 	copy_uri.erase(pos, std::string::npos);
-	return true;
 }
 
-bool RequestParser::validateLeadingSlash(const std::string& copy_uri)
+void RequestParser::validateLeadingSlash(const std::string& copy_uri)
 {
 	if (copy_uri.front() != '/')
 	{
@@ -118,10 +112,9 @@ bool RequestParser::validateLeadingSlash(const std::string& copy_uri)
             "Malformed request: No leading slash found."    
         );
 	}
-	return true;
 }
 
-bool RequestParser::rejectNullBytes(std::string& parsed_uri)
+void RequestParser::rejectNullBytes(std::string& parsed_uri)
 {
 	if (parsed_uri.find("%00") != std::string::npos || parsed_uri.find('\0') != std::string::npos)
 	{
@@ -132,7 +125,6 @@ bool RequestParser::rejectNullBytes(std::string& parsed_uri)
             "Malformed request: Nullbyte found in path."    
         );
 	}
-	return true;
 }
 
 static char hexToDecimal(char c)
@@ -182,7 +174,7 @@ static bool check_safe_decode(char c)
 	return safe_decode_lookup[static_cast<unsigned char>(c)];
 }
 
-bool RequestParser::validateHexBytes(std::string& parsed_uri)
+void RequestParser::validateHexBytes(std::string& parsed_uri)
 {
 	for (size_t i = 0; i < parsed_uri.length(); i++)
 	{
@@ -213,10 +205,9 @@ bool RequestParser::validateHexBytes(std::string& parsed_uri)
 				i += 2;
 		}
 	}
-	return true;
 }
 
-bool RequestParser::normalizePath(std::string& parsed_uri)
+void RequestParser::normalizePath(std::string& parsed_uri)
 {
 	std::vector<std::string> segments;
 	size_t start = 1;
@@ -243,42 +234,28 @@ bool RequestParser::normalizePath(std::string& parsed_uri)
 		if (i < segments.size() - 1)
 			parsed_uri += "/";
 	}
-	return true;
 }
 
-bool RequestParser::normalizeURI(std::string& parsed_uri)
+void RequestParser::normalizeURI(std::string& parsed_uri)
 {
-	if (!rejectNullBytes(parsed_uri))
-		return false;
-	if (!validateHexBytes(parsed_uri))
-		return false;
-	if (!normalizePath(parsed_uri))
-		return false;
+	rejectNullBytes(parsed_uri);
+	validateHexBytes(parsed_uri);
+	normalizePath(parsed_uri);
 	// std::cout << "NORMALIZED STRING: " << parsed_uri << std::endl;
-	return true;
 }
 
-bool RequestParser::parseURI(void)
+void RequestParser::parseURI(void)
 {
 	std::string working_uri(m_request.getRawUri());
-	if (!errorOnEmpty(working_uri))
-		return false;
-	if (!validateLeadingSlash(working_uri))
-		return false;
-	if (!pathTooLong(working_uri))
-		return false;
-	if (!errorOnScheme(working_uri))
-		return false;
-	if (!errorOnAuthority(working_uri))
-		return false;
-	if (!errorOnUserInfo(working_uri))
-		return false;
+	errorOnEmpty(working_uri);
+	validateLeadingSlash(working_uri);
+	pathTooLong(working_uri);
+	errorOnScheme(working_uri);
+	errorOnAuthority(working_uri);
+	errorOnUserInfo(working_uri);
 	trimFragment(working_uri);
-	if (!storeQuery(working_uri))
-		return false;
-	if (!normalizeURI(working_uri))
-		return false;
+	storeQuery(working_uri);
+	normalizeURI(working_uri);
 	m_request.setPath(working_uri);
-	return true;
 }
 
