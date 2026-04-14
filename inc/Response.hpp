@@ -9,7 +9,7 @@ class Response
 		const int			fd;
 		const Request		*request;
 		const Route_rule	*route;
-		std::string			status;
+		ReplyStatus			status;
 		HttpMethod			method;
 		std::string			Date;
 		std::string			content_type;
@@ -28,8 +28,8 @@ class Response
 		void				SetErrorPages();
 		bool				is_cgi(std::string &p_cgi);
 	public:
-		Response(const int fd, std::string status);
-		Response(const Server *config, const Route_rule *route, const Request *request, const int fd, std::string status, char **envp);
+		Response(const int fd, ReplyStatus status);
+		Response(const Server *config, const Route_rule *route, const Request *request, const int fd, char **envp);
 		void	Reply();
 		~Response();
 };
