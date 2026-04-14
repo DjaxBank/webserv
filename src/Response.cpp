@@ -5,12 +5,15 @@
 #include <iostream>
 #include <sys/socket.h>
 #include <filesystem>
-std::string Cgi(std::string cgi_program, std::string file, char **envp);
+#include "cgi.hpp"
 
-Response::Response(const int fd, std::string status) : fd(fd), status(status), Date(get_timestr()) {};
+Response::Response(const int fd, std::string status) : cgi_fd(-1), cgi(nullptr), fd(fd), status(status), Date(get_timestr()) {};
 
-Response::Response(const Server *config, const Route_rule *route, const Request *request, const int fd, std::string status, char **envp)
-	: config(config), envp(envp), fd(fd), request(request), route(route), status(status), method(request->getMethod()), Date(get_timestr())
+Response::Response(const Server *config, const Route_rule *route, const Request *request, const int fd, std::string status, char **envp, int cgi_fd)
+	: cgi_fd(cgi_fd), cgi(nullptr), config(config), envp(envp), fd(fd), request(request), route(route), status(status), method(request->getMethod()), Date(get_timestr()) {};
+
+Response::Response(const Server *config, const Route_rule *route, const Request *request, const int fd, std::string status, char **envp, std::map<pid_t, int> *cgi)
+	: cgi_fd(-1), cgi(cgi), config(config), envp(envp), fd(fd), request(request), route(route), status(status), method(request->getMethod()), Date(get_timestr())
 {
 	file_location = route->root + "/" + request->getPath().substr(route->route.length());
 	if (this->status.empty())
@@ -118,7 +121,7 @@ void Response::ExtractFile(std::string file_path)
 	}
 }
 
-bool Response::is_cgi(std::string &p_cgi)
+bool Response::is_cgi()
 {
 	size_t i = file_location.find_last_of('.');
 	std::string ext;
@@ -126,7 +129,7 @@ bool Response::is_cgi(std::string &p_cgi)
 		ext = file_location.substr(file_location.find_last_of('.'));
 	if (config->cgiconfigs.contains(ext))
 	{
-		p_cgi = config->cgiconfigs.find(ext)->second;
+		cgi->emplace(start_Cgi(config->cgiconfigs.find(ext)->second, file_location, envp));
 		return true;
 	}
 	return false;
@@ -134,33 +137,8 @@ bool Response::is_cgi(std::string &p_cgi)
 
 void Response::GET()
 {
-	std::string p_cgi;
-
-	if (is_cgi(p_cgi))
-	{
-		body = Cgi(p_cgi, file_location, envp);
-		if (body.empty())
-			status = "500 Internal Server Error";
-		size_t headers_end = body.find("\r\n\r\n");
-		if (headers_end != body.npos)
-		{
-			std::string	cgi_headers = body.substr(0, headers_end + 2);
-			body.erase(0, headers_end + 4);
-			while (!cgi_headers.empty())
-			{
-				size_t delimloc = cgi_headers.find("\r\n");
-				std::string new_header = cgi_headers.substr(0, delimloc);
-				if (new_header.find("Content-type:") == 0)
-					content_type = new_header.substr(14);
-				cgi_headers.erase(0, delimloc + 2);
-			}
-		}
-	}
-	else
-	{
-		ExtractFile(file_location);
-		find_contentype();
-	}
+	ExtractFile(file_location);
+	find_contentype();
 }
 
 void Response::POST()
@@ -253,13 +231,13 @@ void Response::SetErrorPages()
 	}
 	else
 	{
-		std::string left = R"HTML(<!DOCTYPE html>
+		const std::string left = R"HTML(<!DOCTYPE html>
 	<html lang="en">
 		<head>
 			<meta charset="UTF-8" />
 			<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 			<title>)HTML";
-		std::string right = R"HTML(</title>
+		const std::string right = R"HTML(</title>
 	</head>
 	</html>)HTML";
 		body = left + status + right;
@@ -271,6 +249,14 @@ void Response::Reply()
 		status = "405 Method Not Allowed";
 	if (status != "200 OK" && status != "301 Moved Permanently")
 		SetErrorPages();
+	if (!this->prevcgi && is_cgi())
+		return ;
+	else if (this->prevcgi)
+	{
+		body = read_cgi(cgi_fd);
+		if (body.empty())
+			status = "500 Internal Server Error";
+	}
 	else if (status == "200 OK")
 	{
 		switch (method)
