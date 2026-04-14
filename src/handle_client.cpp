@@ -87,7 +87,7 @@ void close_socket(int fd, std::vector<Server> &servers, std::vector<int> &keep_a
 		keep_alive.erase(it);
 }
 
-void handle_client(std::vector<Server> &servers, fd_set *monitored, std::vector<int> &keep_alive, char **envp)
+void handle_client(std::vector<Server> &servers, fd_set *monitored, std::vector<int> &keep_alive, std::map<pid_t, int> &cgi, char **envp)
 {
 	std::vector<int>	client_fds;
 
@@ -154,7 +154,7 @@ void handle_client(std::vector<Server> &servers, fd_set *monitored, std::vector<
 				status = "301 Moved Permanently";
 			try
 			{
-				Response	response(&config, &route, &parsed_request.value(), fd, status, envp);
+				Response	response(&config, &route, &parsed_request.value(), fd, status, envp, &cgi);
 				response.Reply();
 			}
 			catch(const std::exception& e)
@@ -172,8 +172,6 @@ void handle_client(std::vector<Server> &servers, fd_set *monitored, std::vector<
 			close_socket(fd, servers, keep_alive);
 			continue;
 		}
-		// if (parsed_request.value().getHeaders().find("Connection")->second == "close")
-		// 	close_socket(fd, servers);
 		if (std::find(keep_alive.begin(), keep_alive.end(), fd) == keep_alive.end())
 			keep_alive.push_back(fd);
 		}

@@ -30,21 +30,12 @@ static fd_set setup_socket_fds(std::vector<int> &fd_list)
 
 static void reset_sockets(std::vector<Server> &servers, fd_set &socket_fds, std::vector<int> &keep_alive, int &max_fd)
 {
-	std::vector<int> fd_list;
+	std::vector<int>	fd_list;
 
 	for (Server &serv : servers)
 		fd_list.push_back(serv.sock.get_socket_fd());
-	std::vector<int>::iterator it = keep_alive.begin();
-	while (it != keep_alive.end())
-	{
-		if (fcntl(*it, F_GETFD) == -1)
-			close_socket(*it, servers, keep_alive);
-		else
-		{
-			fd_list.push_back(*it);
-			it++;
-		}
-	}
+	for (std::vector<int>::iterator it ; it != keep_alive.end() ; it++)
+		fd_list.push_back(*it);
 	socket_fds = setup_socket_fds(fd_list);
 	max_fd = 0;
 	for (int fd : fd_list)
@@ -54,9 +45,10 @@ static void reset_sockets(std::vector<Server> &servers, fd_set &socket_fds, std:
 
 static void server_loop(std::vector<Server> servers, char **envp)
 {
-	fd_set				socket_fds;
-	int					max_fd;
-	std::vector<int>	keep_alive;
+	fd_set					socket_fds;
+	int						max_fd;
+	std::vector<int>		keep_alive;
+	std::map<pid_t, int>	cgi;
 
 	for (Server &serv : servers)
 		std::cout << "Webserver listening on " << serv.sock.info.second << " interface port " <<  std::to_string(serv.sock.info.first) << '\n';
@@ -69,7 +61,7 @@ static void server_loop(std::vector<Server> servers, char **envp)
 		{
 			try
 			{
-				handle_client(servers, &socket_fds, keep_alive, envp);
+				handle_client(servers, &socket_fds, keep_alive, cgi, envp);
 			}
 			catch(const std::exception& e)
 			{

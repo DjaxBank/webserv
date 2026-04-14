@@ -4,6 +4,9 @@
 class Response
 {
 	private:
+		bool				prevcgi = false;
+		const int			cgi_fd;
+		std::map<pid_t, int> *cgi;
 		const				Server *config;
 		char				**envp;
 		const int			fd;
@@ -26,10 +29,11 @@ class Response
 							Response();
 		bool				MethodAllowed();
 		void				SetErrorPages();
-		bool				is_cgi(std::string &p_cgi);
+		bool				is_cgi();
 	public:
 		Response(const int fd, std::string status);
-		Response(const Server *config, const Route_rule *route, const Request *request, const int fd, std::string status, char **envp);
+		Response(const Server *config, const Route_rule *route, const Request *request, const int fd, std::string status, char **envp, int cgi_fd);
+		Response(const Server *config, const Route_rule *route, const Request *request, const int fd, std::string status, char **envp, std::map<pid_t, int> *cgi);
 		void	Reply();
 		~Response();
 };

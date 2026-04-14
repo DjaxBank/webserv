@@ -3,8 +3,9 @@
 #include <string>
 #include <vector>
 #include <fstream>
+#include <map>
 
-std::string Cgi(std::string cgi_program, std::string file, char **envp)
+std::pair<pid_t, int> start_Cgi(std::string cgi_program, std::string file, char **envp)
 {
 	int pipes[2];
 	pipe(pipes);
@@ -26,22 +27,19 @@ std::string Cgi(std::string cgi_program, std::string file, char **envp)
 	}
 	delete[] args_execve;
 	close (pipes[1]);
+	return (std::pair<pid_t, int>{pid, pipes[0]});
+}
 
-	int status;
-	waitpid(pid, &status, 0);
+std::string read_cgi(int fd)
+{
 	std::string php_response;
-	if (status == EXIT_SUCCESS)
+	char buff[1024];
+	while(1)
 	{
-		char buff[1024];
-		size_t bytes_read;
-		while(1)
-		{
-			bytes_read = read(pipes[0], buff, 1024);
-			php_response.append(buff, bytes_read);
-			if (bytes_read <= 0)
-				break ;
-		}
+		ssize_t bytes_read = read(fd, buff, 1024);
+		php_response.append(buff, bytes_read);
+		if (bytes_read <= 0)
+			break ;
 	}
-	close (pipes[0]);
 	return php_response;
 }
