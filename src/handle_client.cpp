@@ -124,16 +124,25 @@ void handle_client(std::vector<Server> &servers, fd_set *monitored, std::vector<
 
 				if (!parsed_request.has_value())
 				{
-					reply_status = HTTP_STATUS::BAD_REQUEST;
-					should_close = true;
+					// leave fd in keep-alive set and let meain vent loop call select again
+					return;
 				}
-				// try to find route, error on emtpy
-
 			}
 			// catch parser exception. sign bad request and should close
 			catch(const HttpParseException& e)
 			{
 				std::cerr << e.what() << '\n';
+				const ReplyStatus reply_status = e.getStatus();
+
+				try
+				{
+					Response error_response(fd, reply_status);
+					error_response.Reply();
+				}
+				catch(const std::exception& error)
+				{
+					std::cerr << "Failed to send error response: " << e.what() << '\n';
+				}
 			}
 			// catch regular exception, sign internal server error and should close
 			

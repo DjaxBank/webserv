@@ -41,12 +41,16 @@ enum class ReplyStatus
     OK = 200, // request succeeded, server is retuning requested representation as response
     MovedPermanently = 301, // Target resource now has a new permanent URI. Cleints should use the new uri (redirect)
     BadRequest = 400, // server cannot or will not process request due to client error (malformed syntax, invalid frmaing, deceptive routing, etc.)
+	Forbidden = 403,
+	NotFound = 404,
+	MethodNotAllowed = 405,
     RequestTimeout = 408, // server did not receive a complete request message in time it was prepared to wait
     ContentTooLarge = 413, // request content is larger thant he serve ris willing or able to process
     UriTooLong = 414, // target uri is longer than the server is willing to interpret
     RequestHeaderFieldsTooLarge = 431, // The server refuses to process the request because header fields are too large (single header or aggregate headers).
     InternalServerError = 500, // server encountered unexpected condiiton that prevented it from fulfilling the request
-    NotImplemented = 501 // server does not support funcitonality required to fulfill the request (unimplemented method)
+    NotImplemented = 501, // server does not support funcitonality required to fulfill the request (unimplemented method)
+	Unset = 0 // Unset
 };
 
 // HTTP parsing constants

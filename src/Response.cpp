@@ -7,35 +7,38 @@
 #include <filesystem>
 std::string Cgi(std::string cgi_program, std::string file, char **envp);
 
-Response::Response(const int fd, std::string status) : fd(fd), status(status) {};
+Response::Response(const int fd, ReplyStatus status) : fd(fd), status(status) {};
 
-Response::Response(const Server *config, const Route_rule *route, const Request *request, const int fd, std::string status, char **envp)
-	: config(config), envp(envp), fd(fd), request(request), route(route), status(status), method(request->getMethod()), Date(get_timestr())
+Response::Response(const Server *config, const Route_rule *route, const Request *request, const int fd, char **envp)
+	: config(config), envp(envp), fd(fd), request(request), route(route), method(request->getMethod()), Date(get_timestr())
 {
-	file_location = route->root + "/" + request->getPath().substr(route->route.length());
-	if (this->status.empty())
+	this->status = ReplyStatus::Unset;
+	if (!route->redirection.empty())
+		this->status = ReplyStatus::MovedPermanently;
+	else
 	{
+		file_location = route->root + "/" + request->getPath().substr(route->route.length());
 		std::error_code ec;
 		if (std::filesystem::exists(file_location, ec))
 		{
 			if (ec)
 			{
 				if (ec.value() == EACCES)
-					this->status = "403 Forbidden";
+					this->status = ReplyStatus::Forbidden;
 				else
-					this->status = "500 Internal Server Error";
+					this->status = ReplyStatus::InternalServerError;
 			}
 			else
 			{
 				std::ifstream test(file_location);
 				if (!test.is_open())
-					this->status = "403 Forbidden";
+					this->status = ReplyStatus::Forbidden;
 				else
-					this->status = "200 OK";
+					this->status = ReplyStatus::OK;
 			}
 		}
 		else
-			this->status = "404 Not Found";
+			this->status = ReplyStatus::NotFound;
 	}
 }
 std::string Response::get_timestr()
@@ -202,6 +205,8 @@ bool Response::MethodAllowed()
 		}
 	return allowed;
 }
+
+// todo -> add reply status to string mapper here
 void Response::SetErrorPages()
 {
 	if (status == "403 Forbidden")
@@ -249,36 +254,59 @@ void Response::SetErrorPages()
 			ExtractFile(config->NotFound);
 	}
 }
+
+static std::string status_to_string(ReplyStatus status)
+{
+	switch(status)
+	{
+		// add for the things i added
+		case ReplyStatus::MovedPermanently: return "301: Moved Permenantly";
+		case ReplyStatus::BadRequest: return "400: Bad Request";
+		case ReplyStatus::Forbidden: return "403: Forbidden";
+		case ReplyStatus::NotFound: return "404: Page Not Found";
+		case ReplyStatus::MethodNotAllowed: return "405: Method Not Allowed";
+		case ReplyStatus::RequestTimeout: return "408: Request Timeout";
+		case ReplyStatus::ContentTooLarge: return "413: Content Too Large";
+		case ReplyStatus::UriTooLong: return "414: URI Too Long";
+		case ReplyStatus::RequestHeaderFieldsTooLarge: return "431: Request Header Fields Too Large";
+		case ReplyStatus::NotImplemented: return "501: Method Not Implemeneted";
+		case ReplyStatus::InternalServerError:
+		default: return "500 Internal Server Error";
+	}
+}
+
 void Response::Reply()
 {
-	if (status != "400 Bad Request")
-	{
-		if (!MethodAllowed())
-			status = "405 Method Not Allowed";
+	// if (status == ReplyStatus::BadRequest)
+	// {
+	// 	if (!MethodAllowed())
+	// 		status = "405 Method Not Allowed"; // look into and add
 
-		else
-		{
-			if (status == "403 Forbidden" || status == "404 Not Found")
-				SetErrorPages();
-			else if (status == "200 OK")
-			{
-				switch (method)
-				{
-					case (HttpMethod::GET):
-						this->GET();
-						break;
-					case (HttpMethod::POST):
-						this->POST();
-						break;
-					case (HttpMethod::DELETE):
-						this->DELETE();
-						break;
-					default:
-						break;
-				}
-			}
-		}
-	}
+	// 	else
+	// 	{
+	// 		if (status == "403 Forbidden" || status == "404 Not Found")
+	// 			SetErrorPages();
+	// 		else if (status == "200 OK")
+	// 		{
+	// 			switch (method)
+	// 			{
+	// 				case (HttpMethod::GET):
+	// 					this->GET();
+	// 					break;
+	// 				case (HttpMethod::POST):
+	// 					this->POST();
+	// 					break;
+	// 				case (HttpMethod::DELETE):
+	// 					this->DELETE();
+	// 					break;
+	// 				default:
+	// 					break;
+	// 			}
+	// 		}
+	// 	}
+	// }
+
+	std::string status = status_to_string(this->status);
 	std::string	to_send;
 
 	std::cout << status << '\n';

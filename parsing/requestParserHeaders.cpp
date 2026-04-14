@@ -269,13 +269,8 @@ void RequestParser::parseHeaders()
     std::string headers_section;
     if (!extractHeadersSection(headers_section))
         return;
-
     validateCRLF(headers_section);
-    
     processHeaderLines(headers_section);
-    
     validateRequiredHeaders();
-    
     parseBodyMetadata();
-    
 }
