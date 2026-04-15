@@ -7,38 +7,43 @@
 #include <filesystem>
 #include "cgi.hpp"
 
-Response::Response(const int fd, std::string status) : cgi_fd(-1), cgi(nullptr), fd(fd), status(status), Date(get_timestr()) {};
+Response::Response(const int fd, std::string status) : cgi_fd(-1), fd(fd), status(status), Date(get_timestr()) {};
 
-Response::Response(const Server *config, const Route_rule *route, const Request *request, const int fd, std::string status, char **envp, int cgi_fd)
-	: cgi_fd(cgi_fd), cgi(nullptr), config(config), envp(envp), fd(fd), request(request), route(route), status(status), method(request->getMethod()), Date(get_timestr()) {};
+Response::Response(const Server *config, const Request *request, const int fd, char **envp, int cgi_fd)
+	: prevcgi(true), cgi_fd(cgi_fd), config(config), envp(envp), fd(fd), request(request), status("200 OK"), method(request->getMethod()), Date(get_timestr()) {};
 
-Response::Response(const Server *config, const Route_rule *route, const Request *request, const int fd, std::string status, char **envp, std::map<pid_t, int> *cgi)
-	: cgi_fd(-1), cgi(cgi), config(config), envp(envp), fd(fd), request(request), route(route), status(status), method(request->getMethod()), Date(get_timestr())
+Response::Response(const Server *config, const Route_rule *route, const Request *request, const int fd, char **envp)
+	: cgi_fd(-1), config(config), envp(envp), fd(fd), request(request), route(route), method(request->getMethod()), Date(get_timestr())
 {
-	file_location = route->root + "/" + request->getPath().substr(route->route.length());
-	if (this->status.empty())
+	if (!route->redirection.empty())
+		status = "301 Moved Permanently";
+	else
 	{
-		std::error_code ec;
-		if (std::filesystem::exists(file_location, ec))
+		file_location = route->root + "/" + request->getPath().substr(route->route.length());
+		if (this->status.empty())
 		{
-			if (ec)
+			std::error_code ec;
+			if (std::filesystem::exists(file_location, ec))
 			{
-				if (ec.value() == EACCES)
-					this->status = "403 Forbidden";
+				if (ec)
+				{
+					if (ec.value() == EACCES)
+						this->status = "403 Forbidden";
+					else
+						this->status = "500 Internal Server Error";
+				}
 				else
-					this->status = "500 Internal Server Error";
+				{
+					std::ifstream test(file_location);
+					if (!test.is_open())
+						this->status = "403 Forbidden";
+					else
+						this->status = "200 OK";
+				}
 			}
 			else
-			{
-				std::ifstream test(file_location);
-				if (!test.is_open())
-					this->status = "403 Forbidden";
-				else
-					this->status = "200 OK";
-			}
+				this->status = "404 Not Found";
 		}
-		else
-			this->status = "404 Not Found";
 	}
 }
 std::string Response::get_timestr()
@@ -119,20 +124,6 @@ void Response::ExtractFile(std::string file_path)
 			body.append(buff, bytes_read);
 		}
 	}
-}
-
-bool Response::is_cgi()
-{
-	size_t i = file_location.find_last_of('.');
-	std::string ext;
-	if (i != file_location.npos)
-		ext = file_location.substr(file_location.find_last_of('.'));
-	if (config->cgiconfigs.contains(ext))
-	{
-		cgi->emplace(start_Cgi(config->cgiconfigs.find(ext)->second, file_location, envp));
-		return true;
-	}
-	return false;
 }
 
 void Response::GET()
@@ -243,37 +234,64 @@ void Response::SetErrorPages()
 		body = left + status + right;
 	}
 }
-void Response::Reply()
+
+void Response::extractcgiheaders()
 {
-	if (status != "400 Bad Request" && !MethodAllowed())
-		status = "405 Method Not Allowed";
-	if (status != "200 OK" && status != "301 Moved Permanently")
-		SetErrorPages();
-	if (!this->prevcgi && is_cgi())
-		return ;
-	else if (this->prevcgi)
+	auto start_body = body.find("\r\n\r\n");
+	if (start_body != body.npos)
 	{
-		body = read_cgi(cgi_fd);
-		if (body.empty())
-			status = "500 Internal Server Error";
-	}
-	else if (status == "200 OK")
-	{
-		switch (method)
+		std::string cgiheaders = body.substr(0, start_body);
+		body.erase(0, start_body + 4);
+		while(!cgiheaders.empty())
 		{
-			case (HttpMethod::GET):
-				this->GET();
-				break;
-			case (HttpMethod::POST):
-				this->POST();
-				break;
-			case (HttpMethod::DELETE):
-				this->DELETE();
-				break;
-			default:
-				break;
+			size_t pos = cgiheaders.find("\r\n");
+			if (pos == cgiheaders.npos)
+				pos = cgiheaders.length();
+			std::string cur = cgiheaders.substr(0, pos);
+			if (cur.starts_with("Content-type: "))
+				content_type = cur.substr(14);
+			else
+				headers.push_back(cur);
+			cgiheaders.erase(0, pos);
 		}
 	}
+}
+
+void Response::Reply()
+{
+	if (status == "200 OK" || status.empty())
+	{
+		if (this->prevcgi)
+		{
+			body = read_cgi(cgi_fd);
+			if (!body.empty())
+				extractcgiheaders();
+			else
+				status = "500 Internal Server Error";
+
+		}
+		else if (!MethodAllowed())
+			status = "405 Method Not Allowed";
+		else
+		{
+			switch (method)
+			{
+				case (HttpMethod::GET):
+					this->GET();
+					break;
+				case (HttpMethod::POST):
+					this->POST();
+					break;
+				case (HttpMethod::DELETE):
+					this->DELETE();
+					break;
+				default:
+					break;
+			}
+		}
+	}
+	else if (status != "301 Moved Permanently")
+		SetErrorPages();
 	std::string	to_send;
 	std::cout << status << ' ';
 	std::cout << "(connection " << std::to_string(fd) << ")\n";

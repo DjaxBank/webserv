@@ -3,5 +3,6 @@
 #include <unistd.h>
 #include <string>
 
-std::pair<pid_t, int> start_Cgi(std::string cgi_program, std::string file, char **envp);
+std::pair<int, int> start_Cgi(std::string cgi_program, std::string file, int sock, char **envp);
 std::string read_cgi(int fd);
+bool new_cgi(std::string file_location, Server &config, std::map<int, int> &cgi, int fd, char **envp);
