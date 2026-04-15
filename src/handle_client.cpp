@@ -122,7 +122,7 @@ void handle_client(std::vector<Server> &servers, fd_set *monitored, std::vector<
 		try
 		{
 			bool is_cgi = (cgi.contains(fd));
-			int cgi_fd = -1;
+			int cgi_fd;
 			if (is_cgi)
 			{
 				cgi_fd = fd;
