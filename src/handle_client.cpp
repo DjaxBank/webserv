@@ -178,7 +178,7 @@ void handle_client(std::vector<Server> &servers, fd_set *monitored, std::vector<
 				}
 				else
 				{
-					if (new_cgi(route->root + "/" + parsed_request->getPath().substr(route->route.length()), config, cgi, fd, envp))
+					if (new_cgi(route->root + "/" + parsed_request->getPath().substr(route->route.length()), config, parsed_request->getBodyAsString(), cgi, fd, envp))
 					{
 						saved_requests.emplace(std::pair<int, Request>{fd, parsed_request.value()});
 						continue ;

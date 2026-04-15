@@ -6,9 +6,16 @@
 #include <map>
 #include "Server.hpp"
 
-std::pair<pid_t, int> start_Cgi(std::string cgi_program, std::string file, int sock, char **envp)
+std::pair<pid_t, int> start_Cgi(std::string cgi_program, std::string file, std::string body, int sock, char **envp)
 {
 	int pipes[2];
+	int bodypipe[2];
+	if (!body.empty())
+	{
+		pipe(bodypipe);
+		write(bodypipe[1], body.c_str(), body.length());
+		close(bodypipe[1]);
+	}
 	pipe(pipes);
 	std::vector<std::string>	args;
 
@@ -23,9 +30,13 @@ std::pair<pid_t, int> start_Cgi(std::string cgi_program, std::string file, int s
 	if (pid == 0)
 	{
 		dup2(pipes[1], STDOUT_FILENO);
+		if (!body.empty())
+			dup2(bodypipe[0], STDIN_FILENO);
 		execve(cgi_program.c_str(), args_execve, envp);
 		exit(1);
 	}
+	if (!body.empty())
+		close(bodypipe[0]);
 	delete[] args_execve;
 	close (pipes[1]);
 	return (std::pair<int, int>(pipes[0], sock));
@@ -46,7 +57,7 @@ std::string read_cgi(int fd)
 	return cgi_response;
 }
 
-bool new_cgi(std::string file_location, Server &config, std::map<int, int> &cgi, int fd, char **envp)
+bool new_cgi(std::string file_location, Server &config, std::string body, std::map<int, int> &cgi, int fd, char **envp)
 {
 	if (!cgi.contains(fd))
 	{
@@ -56,7 +67,7 @@ bool new_cgi(std::string file_location, Server &config, std::map<int, int> &cgi,
 			ext = file_location.substr(file_location.find_last_of('.'));
 		if (config.cgiconfigs.contains(ext))
 		{
-			cgi.emplace(start_Cgi(config.cgiconfigs.find(ext)->second, file_location, fd, envp));
+			cgi.emplace(start_Cgi(config.cgiconfigs.find(ext)->second, file_location, body, fd, envp));
 			return true;
 		}
 	}
