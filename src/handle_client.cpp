@@ -98,7 +98,7 @@ void handle_client(std::vector<Server> &servers, fd_set *monitored, std::vector<
 		if (FD_ISSET(serv.sock.get_socket_fd(), monitored))
 		{
 			timeval tv {60, 0};
-			timeval recvtimeout {3, 0};
+			timeval recvtimeout {2, 0};
 			socklen_t addr_len = sizeof(struct sockaddr_in);
 			int newfd = accept(serv.sock.get_socket_fd(), reinterpret_cast <sockaddr *>(&serv.sock.get_addr()), &addr_len); // store somewhere else
 			setsockopt(newfd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
