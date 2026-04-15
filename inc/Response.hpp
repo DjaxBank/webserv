@@ -6,7 +6,6 @@ class Response
 	private:
 		bool				prevcgi = false;
 		const int			cgi_fd;
-		std::map<pid_t, int> *cgi;
 		const				Server *config;
 		char				**envp;
 		const int			fd;
@@ -29,11 +28,12 @@ class Response
 							Response();
 		bool				MethodAllowed();
 		void				SetErrorPages();
+		void				extractcgiheaders();
 		bool				is_cgi();
 	public:
-		Response(const int fd, std::string status);
-		Response(const Server *config, const Route_rule *route, const Request *request, const int fd, std::string status, char **envp, int cgi_fd);
-		Response(const Server *config, const Route_rule *route, const Request *request, const int fd, std::string status, char **envp, std::map<pid_t, int> *cgi);
+		Response(const int fd, std::string status); // error constructor
+		Response(const Server *config, const Request *request, const int fd, char **envp, int cgi_fd); //cgi constructor
+		Response(const Server *config, const Route_rule *route, const Request *request, const int fd, char **envp); //normal constructor
 		void	Reply();
 		~Response();
 };

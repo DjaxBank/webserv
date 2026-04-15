@@ -28,14 +28,16 @@ static fd_set setup_socket_fds(std::vector<int> &fd_list)
 	return socket_fds;
 }
 
-static void reset_sockets(std::vector<Server> &servers, fd_set &socket_fds, std::vector<int> &keep_alive, int &max_fd)
+static void reset_sockets(std::vector<Server> &servers, fd_set &socket_fds, std::vector<int> &keep_alive,  std::map<int, int> &cgi, int &max_fd)
 {
 	std::vector<int>	fd_list;
 
 	for (Server &serv : servers)
 		fd_list.push_back(serv.sock.get_socket_fd());
-	for (std::vector<int>::iterator it ; it != keep_alive.end() ; it++)
+	for (std::vector<int>::iterator it = keep_alive.begin(); it != keep_alive.end() ; it++)
 		fd_list.push_back(*it);
+	for (auto it = cgi.begin() ; it != cgi.end() ; it++)
+		fd_list.push_back(it->first);
 	socket_fds = setup_socket_fds(fd_list);
 	max_fd = 0;
 	for (int fd : fd_list)
@@ -48,15 +50,15 @@ static void server_loop(std::vector<Server> servers, char **envp)
 	fd_set					socket_fds;
 	int						max_fd;
 	std::vector<int>		keep_alive;
-	std::map<pid_t, int>	cgi;
+	std::map<int, int>		cgi;
 
 	for (Server &serv : servers)
 		std::cout << "Webserver listening on " << serv.sock.info.second << " interface port " <<  std::to_string(serv.sock.info.first) << '\n';
 	std::cout << '\n';
 	while (server_running)
 	{
-		timeval timeout{3, 0};
-		reset_sockets(servers, socket_fds, keep_alive, max_fd);
+		timeval timeout{2, 0};
+		reset_sockets(servers, socket_fds, keep_alive, cgi, max_fd);
 		if (select(max_fd + 1, &socket_fds, NULL, NULL, &timeout) > 0)
 		{
 			try

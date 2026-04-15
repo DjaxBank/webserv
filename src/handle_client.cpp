@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <ctime>
 #include <fcntl.h>
+#include "cgi.hpp"
 #include "Response.hpp"
 
 static std::optional<Request> receive_data(int clientfd, RequestParser &parser, std::vector<Server> &servers,  std::vector<int> &keep_alive)
@@ -89,7 +90,8 @@ void close_socket(int fd, std::vector<Server> &servers, std::vector<int> &keep_a
 
 void handle_client(std::vector<Server> &servers, fd_set *monitored, std::vector<int> &keep_alive, std::map<pid_t, int> &cgi, char **envp)
 {
-	std::vector<int>	client_fds;
+	std::vector<int>	active_fds;
+	static std::map<int, Request> saved_requests;
 
 	for (Server &serv : servers)
 	{
@@ -101,7 +103,7 @@ void handle_client(std::vector<Server> &servers, fd_set *monitored, std::vector<
 			int newfd = accept(serv.sock.get_socket_fd(), reinterpret_cast <sockaddr *>(&serv.sock.get_addr()), &addr_len); // store somewhere else
 			setsockopt(newfd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
 			setsockopt(newfd, SOL_SOCKET, SO_RCVTIMEO, &recvtimeout, sizeof(recvtimeout));
-			client_fds.push_back(newfd);
+			active_fds.push_back(newfd);
 			serv.sock.client_fds.push_back(newfd);
 			std::cout << "new connection " << std::to_string(newfd) << '\n';
 		}
@@ -109,53 +111,82 @@ void handle_client(std::vector<Server> &servers, fd_set *monitored, std::vector<
 	for (int fd : keep_alive)
 	{
 		if (FD_ISSET(fd, monitored))
-			client_fds.push_back(fd);
+			active_fds.push_back(fd);
 	}
-	for (const int fd : client_fds)
+	for (auto it = cgi.begin() ; it != cgi.end() ; it++)
+		if (FD_ISSET(it->first, monitored))
+			active_fds.push_back(it->first);
+	for (int fd : active_fds)
 	{
 		std::optional<Request>	parsed_request;
 		try
 		{
-			
+			bool is_cgi = (cgi.contains(fd));
+			int cgi_fd = -1;
+			if (is_cgi)
+			{
+				cgi_fd = fd;
+				fd = cgi.find(fd)->second;
+			}
 			Server					&config = find_active_server(fd, servers);
 			RequestParser			parser;
 			std::string				status;
-			try
+			if (!is_cgi)
 			{
-				parsed_request = receive_data(fd, parser, servers, keep_alive);
-			}
-			catch (const HttpParseException& e)
-			{
-				std::cerr << "Parse error on fd " << fd
-						<< " (status " << e.statusCode() << "): "
-						<< e.what() << '\n';
-						throw std::runtime_error("");
-						
-					}
-					catch (const std::exception& e)
-					{
-						std::cerr << "Error handling request on fd " << fd
-						<< ": " << e.what() << '\n';
-						throw std::runtime_error("");
-					}
-					if (!parsed_request.has_value())
-					{
-						char buf;
-						if (recv(fd, &buf, 1, 0) <= 0)
-						{
-							close_socket(fd, servers, keep_alive);
-							continue;
+				try
+				{
+					parsed_request = receive_data(fd, parser, servers, keep_alive);
+				}
+				catch (const HttpParseException& e)
+				{
+					std::cerr << "Parse error on fd " << fd
+							<< " (status " << e.statusCode() << "): "
+							<< e.what() << '\n';
+							throw std::runtime_error("");
+							
 						}
-						std::cerr << "Failed to parse request from fd " << fd << ", skipping.\n";
-						throw std::runtime_error("");
+						catch (const std::exception& e)
+						{
+							std::cerr << "Error handling request on fd " << fd
+							<< ": " << e.what() << '\n';
+							throw std::runtime_error("");
+						}
+						if (!parsed_request.has_value())
+						{
+							char buf;
+							if (recv(fd, &buf, 1, 0) <= 0)
+							{
+								close_socket(fd, servers, keep_alive);
+								continue;
+							}
+							std::cerr << "Failed to parse request from fd " << fd << ", skipping.\n";
+							throw std::runtime_error("");
+				}
 			}
-			Route_rule			&route = find_correct_route(config, *parsed_request);
-			if (!route.redirection.empty())
-				status = "301 Moved Permanently";
+			Route_rule			*route;
+			if (!is_cgi) 
+				route = &find_correct_route(config, *parsed_request);
 			try
 			{
-				Response	response(&config, &route, &parsed_request.value(), fd, status, envp, &cgi);
-				response.Reply();
+				if (is_cgi)
+				{
+					auto saved_request = saved_requests.find(fd);
+					Response	response(&config, &saved_request->second, fd, envp, cgi_fd);
+					response.Reply();
+					cgi.erase(cgi.find(cgi_fd));
+					saved_requests.erase(saved_request);
+				}
+				else
+				{
+					if (new_cgi(route->root + "/" + parsed_request->getPath().substr(route->route.length()), config, cgi, fd, envp))
+					{
+						saved_requests.emplace(std::pair<int, Request>{fd, parsed_request.value()});
+						continue ;
+					}
+					Response response(&config, route, &parsed_request.value(), fd, envp);
+					response.Reply();
+				}
+				
 			}
 			catch(const std::exception& e)
 			{

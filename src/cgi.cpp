@@ -4,8 +4,9 @@
 #include <vector>
 #include <fstream>
 #include <map>
+#include "Server.hpp"
 
-std::pair<pid_t, int> start_Cgi(std::string cgi_program, std::string file, char **envp)
+std::pair<pid_t, int> start_Cgi(std::string cgi_program, std::string file, int sock, char **envp)
 {
 	int pipes[2];
 	pipe(pipes);
@@ -27,19 +28,37 @@ std::pair<pid_t, int> start_Cgi(std::string cgi_program, std::string file, char 
 	}
 	delete[] args_execve;
 	close (pipes[1]);
-	return (std::pair<pid_t, int>{pid, pipes[0]});
+	return (std::pair<int, int>(pipes[0], sock));
 }
 
 std::string read_cgi(int fd)
 {
-	std::string php_response;
-	char buff[1024];
+	std::string	cgi_response;
+	char		buff[1024];
 	while(1)
 	{
 		ssize_t bytes_read = read(fd, buff, 1024);
-		php_response.append(buff, bytes_read);
 		if (bytes_read <= 0)
 			break ;
+		cgi_response.append(buff, bytes_read);
 	}
-	return php_response;
+	close(fd);
+	return cgi_response;
+}
+
+bool new_cgi(std::string file_location, Server &config, std::map<int, int> &cgi, int fd, char **envp)
+{
+	if (!cgi.contains(fd))
+	{
+		std::string ext;
+		size_t i = file_location.find_last_of('.');
+		if (i != file_location.npos)
+			ext = file_location.substr(file_location.find_last_of('.'));
+		if (config.cgiconfigs.contains(ext))
+		{
+			cgi.emplace(start_Cgi(config.cgiconfigs.find(ext)->second, file_location, fd, envp));
+			return true;
+		}
+	}
+	return false;
 }
