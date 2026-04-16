@@ -293,8 +293,7 @@ void Response::Reply()
 	else if (status != "301 Moved Permanently")
 		SetErrorPages();
 	std::string	to_send;
-	std::cout << status << ' ';
-	std::cout << "(connection " << std::to_string(fd) << ")\n";
+	std::cout << method_tostring(this->request->getMethod()) << ' ' << this->request->getPath() << ' ' << this->config->sock.client_fds.find(fd)->second << ' ' << status << ' ' << "(connection " << std::to_string(fd) << ")\n";
 	headers.emplace(headers.begin(), "HTTP/1.1 " + status);
 	headers.emplace_back("Date: " + Date);
 	if (status == "301 Moved Permanently")

@@ -2,41 +2,60 @@
 #include <sys/wait.h>
 #include <string>
 #include <vector>
-#include <fstream>
 #include <map>
 #include "Server.hpp"
+#include "requestParser.hpp"
+/* 
+REQUEST_METHOD
+QUERY_STRING
+CONTENT_TYPE
+CONTENT_LENGTH
+SCRIPT_NAME
+PATH_INFO
+SERVER_NAME
+SERVER_PORT
+SERVER_PROTOCOL
+REMOTE_ADDR
+ */
 
-static char **setenv(char **envp, std::string &query)
+static char **setenv(char **envp, Request &request)
 {
-	if (query.empty())
-		return envp;
-	else
+	size_t		i = 0;
+	std::string	REQUEST_METHOD = method_tostring(request.getMethod());
+	std::string QUERY_STRING = request.getQuery();
+	std::string CONTENT_TYPE;
+	std::string SCRIPT_NAME;
+	std::string PATH_INFO;
+	std::string SERVER_NAME;
+	std::string SERVER_PORT;
+	std::string SERVER_PROTOCOL;
+	std::string REMOTE_ADDR;
+	size_t		paramcount = 8 + !QUERY_STRING.empty();
+
+	while (envp[i] != NULL)
+		i++;
+	const size_t totalcount = i + paramcount;
+	if (!QUERY_STRING.empty())
+		QUERY_STRING.insert(0, "QUERY_STRING=");
+	char **execenv = new char *[totalcount];
+	while (envp[i] != NULL)
 	{
-		query.insert(0, "QUERY_STRING=");
-		size_t i = 0;
-		while (envp[i] != NULL)
-			i++;
-		i += 2;
-		char **execenv = new char *[i];
-		i = 0;
-		while (envp[i] != NULL)
-		{
-			execenv[i] = envp[i];
-			i++;
-		}
-		execenv[i++] = const_cast<char*>(query.c_str());
-		execenv[i] = nullptr;
-		return execenv;
+		execenv[i] = envp[i];
+		i++;
 	}
+	execenv[i++] = const_cast<char*>(QUERY_STRING.c_str());
+	execenv[i] = nullptr;
+	return execenv;
 }
 
-static std::pair<pid_t, int> start_Cgi(std::string cgi_program, std::string file, std::string body, std::string query, int sock, char **envp)
+static std::pair<pid_t, int> start_Cgi(std::string cgi_program, std::string file, Request &request, int sock, char **envp)
 {
 	int pipes[2];
 	int bodypipe[2];
-	char **execenv = setenv(envp, query);
+	char **execenv = setenv(envp, request);
+	std::string body = request.getBodyAsString();
 
-	if (!body.empty())
+	if (!request.getBodyAsString().empty())
 	{
 		pipe(bodypipe);
 		write(bodypipe[1], body.c_str(), body.length());
@@ -63,7 +82,7 @@ static std::pair<pid_t, int> start_Cgi(std::string cgi_program, std::string file
 	if (!body.empty())
 		close(bodypipe[0]);
 	delete[] args_execve;
-	if (!query.empty())
+	if (!request.getQuery().empty())
 		delete [] execenv;
 	close (pipes[1]);
 	return (std::pair<int, int>(pipes[0], sock));
@@ -84,7 +103,7 @@ std::string read_cgi(int fd)
 	return cgi_response;
 }
 
-bool new_cgi(std::string file_location, Server &config, std::string body, std::string query, std::map<int, int> &cgi, int fd, char **envp)
+bool new_cgi(std::string file_location, Server &config, Request &request, std::map<int, int> &cgi, int fd, char **envp)
 {
 	if (!cgi.contains(fd))
 	{
@@ -94,7 +113,7 @@ bool new_cgi(std::string file_location, Server &config, std::string body, std::s
 			ext = file_location.substr(file_location.find_last_of('.'));
 		if (config.cgiconfigs.contains(ext))
 		{
-			cgi.emplace(start_Cgi(config.cgiconfigs.find(ext)->second, file_location, body, query, fd, envp));
+			cgi.emplace(start_Cgi(config.cgiconfigs.find(ext)->second, file_location, request, fd, envp));
 			return true;
 		}
 	}
