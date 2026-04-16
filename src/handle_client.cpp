@@ -8,6 +8,7 @@
 #include <unistd.h>
 #include <algorithm>
 #include <ctime>
+#include <filesystem>
 #include <fcntl.h>
 #include "cgi.hpp"
 #include "Response.hpp"
@@ -176,7 +177,8 @@ void handle_client(std::vector<Server> &servers, fd_set *monitored, std::vector<
 				}
 				else
 				{
-					if (new_cgi(route->root + "/" + parsed_request->getPath().substr(route->route.length()), config, *parsed_request, cgi, fd, envp))
+					std::string filelocation(route->root + "/" + parsed_request->getPath().substr(route->route.length()));
+					if (std::filesystem::exists(filelocation) && new_cgi(filelocation, config, *parsed_request, cgi, fd, envp))
 					{
 						saved_requests.emplace(std::pair<int, Request>{fd, parsed_request.value()});
 						continue ;
