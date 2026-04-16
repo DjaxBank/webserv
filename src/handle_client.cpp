@@ -98,7 +98,7 @@ void handle_client(std::vector<Server> &servers, fd_set *monitored, std::vector<
 		if (FD_ISSET(serv.sock.get_socket_fd(), monitored))
 		{
 			timeval tv {60, 0};
-			timeval recvtimeout {2, 0};
+			timeval recvtimeout {1, 0};
 			socklen_t addr_len = sizeof(struct sockaddr_in);
 			int newfd = accept(serv.sock.get_socket_fd(), reinterpret_cast <sockaddr *>(&serv.sock.get_addr()), &addr_len); // store somewhere else
 			setsockopt(newfd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
@@ -170,7 +170,7 @@ void handle_client(std::vector<Server> &servers, fd_set *monitored, std::vector<
 			{
 				if (is_cgi)
 				{
-					auto saved_request = saved_requests.find(fd);
+					std::map<int, Request>::iterator saved_request = saved_requests.find(fd);
 					Response	response(&config, &saved_request->second, fd, envp, cgi_fd);
 					response.Reply();
 					cgi.erase(cgi.find(cgi_fd));
@@ -178,7 +178,7 @@ void handle_client(std::vector<Server> &servers, fd_set *monitored, std::vector<
 				}
 				else
 				{
-					if (new_cgi(route->root + "/" + parsed_request->getPath().substr(route->route.length()), config, parsed_request->getBodyAsString(), cgi, fd, envp))
+					if (new_cgi(route->root + "/" + parsed_request->getPath().substr(route->route.length()), config, parsed_request->getBodyAsString(), parsed_request->getQuery(), cgi, fd, envp))
 					{
 						saved_requests.emplace(std::pair<int, Request>{fd, parsed_request.value()});
 						continue ;
