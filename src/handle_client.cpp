@@ -43,7 +43,7 @@ static Server &find_active_server(int target_fd, std::vector<Server> &servers)
 		if (serv.sock.client_fds.contains(target_fd))
 			return serv;
 	}
-	throw std::runtime_error("");
+	std::abort();
 }
 
 static Route_rule &find_correct_route(Server &serv, const Request &request)
@@ -66,7 +66,7 @@ static Route_rule &find_correct_route(Server &serv, const Request &request)
 		if (*longest == cur.route)
 			return cur;
 	}
-	throw std::runtime_error("");
+	std::abort();
 }
 
 void close_socket(int fd, std::vector<Server> &servers, std::vector<int> &keep_alive)
