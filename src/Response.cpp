@@ -245,14 +245,14 @@ void Response::extractcgiheaders()
 		while(!cgiheaders.empty())
 		{
 			size_t pos = cgiheaders.find("\r\n");
-			if (pos == cgiheaders.npos)
+			if (pos == cgiheaders.npos )
 				pos = cgiheaders.length();
 			std::string cur = cgiheaders.substr(0, pos);
 			if (cur.starts_with("Content-type: "))
 				content_type = cur.substr(14);
 			else
 				headers.push_back(cur);
-			cgiheaders.erase(0, pos);
+			cgiheaders.erase(0, pos + 2);
 		}
 	}
 }
