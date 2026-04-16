@@ -4,8 +4,6 @@
 #include <exception>
 #include <map>
 #include <string>
-#include <vector>
-
 class Socket
 {
 	private:
@@ -14,12 +12,13 @@ class Socket
 		struct sockaddr_in	addr;
 	public:
 		std::pair<int, std::string> info;
-		std::vector<int> client_fds;
+		std::map<int, std::string> client_fds;
 		Socket() : socket_fd(-1){};
 		Socket(std::pair<int, std::string> sock);
 		Socket(const Socket &other);
 		Socket &operator=(const Socket &other);
 		~Socket();
 		int get_socket_fd();
+		std::string get_ip();
 		sockaddr_in &get_addr();
 };

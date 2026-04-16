@@ -33,7 +33,6 @@ static std::optional<Request> receive_data(int clientfd, RequestParser &parser, 
 		if (parsed_request.has_value())
 			break ;
 	}
-	std::cout << request_raw.substr(0, request_raw.find(" HTTP/")) << ' ';
 	return parsed_request;
 }
 
@@ -41,7 +40,7 @@ static Server &find_active_server(int target_fd, std::vector<Server> &servers)
 {
 	for (Server &serv : servers)
 	{
-		if (std::find(serv.sock.client_fds.begin(), serv.sock.client_fds.end(), target_fd) != serv.sock.client_fds.end())
+		if (serv.sock.client_fds.contains(target_fd))
 			return serv;
 	}
 	throw std::runtime_error("");
@@ -76,10 +75,9 @@ void close_socket(int fd, std::vector<Server> &servers, std::vector<int> &keep_a
 	close(fd);
 	for (Server &serv : servers)
 	{
-		auto it = std::find(serv.sock.client_fds.begin(), serv.sock.client_fds.end(), fd);
-		if (it != serv.sock.client_fds.end())
+		if (serv.sock.client_fds.contains(fd))
 		{
-			serv.sock.client_fds.erase(it);
+			serv.sock.client_fds.erase(serv.sock.client_fds.find(fd));
 			break ;
 		}
 	}
@@ -104,7 +102,7 @@ void handle_client(std::vector<Server> &servers, fd_set *monitored, std::vector<
 			setsockopt(newfd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
 			setsockopt(newfd, SOL_SOCKET, SO_RCVTIMEO, &recvtimeout, sizeof(recvtimeout));
 			active_fds.push_back(newfd);
-			serv.sock.client_fds.push_back(newfd);
+			serv.sock.client_fds.emplace((std::pair<int, std::string>){newfd, serv.sock.get_ip()});
 			std::cout << "new connection " << std::to_string(newfd) << '\n';
 		}
 	}
@@ -178,7 +176,7 @@ void handle_client(std::vector<Server> &servers, fd_set *monitored, std::vector<
 				}
 				else
 				{
-					if (new_cgi(route->root + "/" + parsed_request->getPath().substr(route->route.length()), config, parsed_request->getBodyAsString(), parsed_request->getQuery(), cgi, fd, envp))
+					if (new_cgi(route->root + "/" + parsed_request->getPath().substr(route->route.length()), config, *parsed_request, cgi, fd, envp))
 					{
 						saved_requests.emplace(std::pair<int, Request>{fd, parsed_request.value()});
 						continue ;
