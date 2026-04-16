@@ -6,50 +6,52 @@
 #include "Server.hpp"
 #include "requestParser.hpp"
 
-static char **setenv(char **envp, Request &request, Server &config, int sock)
+static char **setenv(char **envp, std::vector<std::pair<std::string, std::string> *> &to_add, std::vector<std::string> &final_strings)
 {
 	size_t		i = 0;
-	std::string	REQUEST_METHOD(method_tostring(request.getMethod()));
-	std::string QUERY_STRING(request.getQuery());
-	std::string CONTENT_TYPE;
-	std::string SCRIPT_NAME;
-	std::string PATH_INFO;
-	std::string SERVER_NAME;
-	std::string SERVER_PORT;
-	std::string SERVER_PROTOCOL;
-	std::string REMOTE_ADDR(config.sock.client_fds.find(sock)->second);
-	size_t		paramcount = 8 + !QUERY_STRING.empty();
-
+	
+	for (std::pair<std::string, std::string> *cur : to_add)
+	{
+		if (!cur->second.empty())
+		final_strings.push_back(cur->first + '=' + cur->second);
+	}
+	final_strings.push_back("REDIRECT_STATUS=200");
 	while (envp[i] != NULL)
 		i++;
-	const size_t totalcount = i + paramcount + 1;
-	if (!QUERY_STRING.empty())
-		QUERY_STRING.insert(0, "QUERY_STRING=");
-	char **execenv = new char *[totalcount];
+	char **execenv = new char *[i + final_strings.size() + 1];
+	i = 0;
 	while (envp[i] != NULL)
 	{
 		execenv[i] = envp[i];
 		i++;
 	}
-	std::vector<std::string *> to_add{&REQUEST_METHOD, &QUERY_STRING, &CONTENT_TYPE, &SCRIPT_NAME, &PATH_INFO, &SERVER_NAME, &SERVER_PORT, &SERVER_PROTOCOL, &REMOTE_ADDR};
-	for (std::string *cur : to_add)
+	for (std::string &cur : final_strings)
 	{
-		if (!cur->empty())
-		{
-			execenv[i] = const_cast<char *>(cur->c_str());
+			execenv[i] = const_cast<char *>(cur.c_str());
 			i++;
-		}
 	}
 	execenv[i] = nullptr;
 	return execenv;
 }
 
-static std::pair<pid_t, int> start_Cgi(Server &config, std::string cgi_program, std::string file, Request &request, int sock, char **envp)
+static std::pair<pid_t, int> start_Cgi(Server &config, std::string cgi_program, std::string scriptname, std::string filelocation, Request &request, int sock, char **envp)
 {
+	std::pair<std::string, std::string>	REQUEST_METHOD("REQUEST_METHOD", method_tostring(request.getMethod()));
+	std::pair<std::string, std::string>	QUERY_STRING("QUERY_STRING", request.getQuery());
+	std::pair<std::string, std::string>	CONTENT_TYPE("CONTENT_TYPE", "");
+	std::pair<std::string, std::string>	SCRIPT_NAME("SCRIPT_NAME", scriptname);
+	std::pair<std::string, std::string>	SCRIPT_FILENAME("SCRIPT_FILENAME", filelocation);
+	std::pair<std::string, std::string>	PATH_INFO("PATH_INFO", "");
+	std::pair<std::string, std::string>	SERVER_NAME("SERVER_NAME", request.getHeaders().find("host")->second);
+	std::pair<std::string, std::string>	SERVER_PORT("SERVER_PORT", std::to_string(config.sock.info.first));
+	std::pair<std::string, std::string>	SERVER_PROTOCOL("SERVER_PROTOCOL", "HTTP/1.1");
+	std::pair<std::string, std::string>	REMOTE_ADDR("REMOTE_ADDR", config.sock.client_fds.find(sock)->second);
+	std::vector<std::pair<std::string, std::string> *> to_add{&REQUEST_METHOD, &QUERY_STRING, &CONTENT_TYPE, &SCRIPT_NAME, &SCRIPT_FILENAME, &PATH_INFO, &SERVER_NAME, &SERVER_PORT, &SERVER_PROTOCOL, &REMOTE_ADDR};
+	std::vector<std::string> final_strings;
+	std::string body = request.getBodyAsString();
 	int pipes[2];
 	int bodypipe[2];
-	char **execenv = setenv(envp, request, config, sock);
-	std::string body = request.getBodyAsString();
+	char **execenv = setenv(envp, to_add, final_strings);
 
 	if (!request.getBodyAsString().empty())
 	{
@@ -60,7 +62,7 @@ static std::pair<pid_t, int> start_Cgi(Server &config, std::string cgi_program, 
 	pipe(pipes);
 	std::vector<std::string>	args;
 	args.push_back(cgi_program);
-	args.push_back(file);
+	args.push_back(filelocation);
 	size_t size = args.size();
 	char **args_execve = new char *[size + 1];
 	for (size_t i = 0; i < size; i++)
@@ -109,7 +111,7 @@ bool new_cgi(std::string file_location, Server &config, Request &request, std::m
 			ext = file_location.substr(file_location.find_last_of('.'));
 		if (config.cgiconfigs.contains(ext))
 		{
-			cgi.emplace(start_Cgi(config, config.cgiconfigs.find(ext)->second, file_location, request, fd, envp));
+			cgi.emplace(start_Cgi(config, config.cgiconfigs.find(ext)->second, request.getPath(), file_location, request, fd, envp));
 			return true;
 		}
 	}
