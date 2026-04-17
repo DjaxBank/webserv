@@ -36,17 +36,18 @@ static char **setenv(char **envp, std::vector<std::pair<std::string, std::string
 
 static std::pair<pid_t, int> start_Cgi(Server &config, std::string cgi_program, std::string scriptname, std::string filelocation, Request &request, int sock, char **envp)
 {
+	auto headers = request.getHeaders();
 	std::pair<std::string, std::string>	REQUEST_METHOD("REQUEST_METHOD", method_tostring(request.getMethod()));
 	std::pair<std::string, std::string>	QUERY_STRING("QUERY_STRING", request.getQuery());
-	std::pair<std::string, std::string>	CONTENT_TYPE("CONTENT_TYPE", "");
+	std::pair<std::string, std::string>	CONTENT_TYPE("CONTENT_TYPE", headers.contains("content-type") ? headers.find("content-type")->second : "");
+	std::pair<std::string, std::string>	CONTENT_LENGTH("CONTENT_LENGTH", headers.contains("content-length") ? headers.find("content-length")->second : ""); 
 	std::pair<std::string, std::string>	SCRIPT_NAME("SCRIPT_NAME", scriptname);
 	std::pair<std::string, std::string>	SCRIPT_FILENAME("SCRIPT_FILENAME", filelocation);
-	std::pair<std::string, std::string>	PATH_INFO("PATH_INFO", "");
-	std::pair<std::string, std::string>	SERVER_NAME("SERVER_NAME", request.getHeaders().find("host")->second);
+	std::pair<std::string, std::string>	SERVER_NAME("SERVER_NAME", headers.contains("host") ? headers.find("host")->second : "");
 	std::pair<std::string, std::string>	SERVER_PORT("SERVER_PORT", std::to_string(config.sock.info.first));
 	std::pair<std::string, std::string>	SERVER_PROTOCOL("SERVER_PROTOCOL", "HTTP/1.1");
 	std::pair<std::string, std::string>	REMOTE_ADDR("REMOTE_ADDR", config.sock.client_fds.find(sock)->second);
-	std::vector<std::pair<std::string, std::string> *> to_add{&REQUEST_METHOD, &QUERY_STRING, &CONTENT_TYPE, &SCRIPT_NAME, &SCRIPT_FILENAME, &PATH_INFO, &SERVER_NAME, &SERVER_PORT, &SERVER_PROTOCOL, &REMOTE_ADDR};
+	std::vector<std::pair<std::string, std::string> *> to_add{&REQUEST_METHOD, &QUERY_STRING, &CONTENT_TYPE, &CONTENT_LENGTH, &SCRIPT_NAME, &SCRIPT_FILENAME, &SERVER_NAME, &SERVER_PORT, &SERVER_PROTOCOL, &REMOTE_ADDR};
 	std::vector<std::string> final_strings;
 	std::string body = request.getBodyAsString();
 	int pipes[2];
