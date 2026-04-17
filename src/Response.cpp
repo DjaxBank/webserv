@@ -7,7 +7,7 @@
 #include <filesystem>
 #include "cgi.hpp"
 
-Response::Response(const int fd, std::string status) : cgi_fd(-1), fd(fd), status(status), Date(get_timestr()) {};
+Response::Response(const int fd, const Server *config, const Request *request, std::string status) : cgi_fd(-1), config(config),fd(fd), request(request), status(status), Date(get_timestr()) {};
 
 Response::Response(const Server *config, const Request *request, const int fd, char **envp, int cgi_fd)
 	: prevcgi(true), cgi_fd(cgi_fd), config(config), envp(envp), fd(fd), request(request), status("200 OK"), method(request->getMethod()), Date(get_timestr()) {};
@@ -160,17 +160,6 @@ void Response::DELETE()
 	std::filesystem::remove(file_location);
 }
 
-bool Response::MethodAllowed()
-{
-	bool allowed = false;
-	for (HttpMethod cur : route->http_methods)
-		if (cur == method)
-		{
-			allowed = true;
-			break;
-		}
-	return allowed;
-}
 void Response::SetErrorPages()
 {
 	if (status == "403 Forbidden" || status == "404 Not Found")
@@ -270,8 +259,6 @@ void Response::Reply()
 				status = "500 Internal Server Error";
 
 		}
-		else if (!MethodAllowed())
-			status = "405 Method Not Allowed";
 		else
 		{
 			switch (method)
