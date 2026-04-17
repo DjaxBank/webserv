@@ -36,7 +36,7 @@ static void reset_sockets(std::vector<Server> &servers, fd_set &socket_fds, std:
 		fd_list.push_back(serv.sock.get_socket_fd());
 	for (std::vector<int>::iterator it = keep_alive.begin(); it != keep_alive.end() ; it++)
 		fd_list.push_back(*it);
-	for (auto it = cgi.begin() ; it != cgi.end() ; it++)
+	for (std::map<int, int>::iterator it = cgi.begin() ; it != cgi.end() ; it++)
 		fd_list.push_back(it->first);
 	socket_fds = setup_socket_fds(fd_list);
 	max_fd = 0;
