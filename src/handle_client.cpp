@@ -87,6 +87,18 @@ void close_socket(int fd, std::vector<Server> &servers, std::vector<int> &keep_a
 		keep_alive.erase(it);
 }
 
+static bool MethodAllowed(Route_rule &route, HttpMethod method)
+{
+	bool allowed = false;
+	for (HttpMethod cur : route.http_methods)
+		if (cur == method)
+		{
+			allowed = true;
+			break;
+		}
+	return allowed;
+}
+
 void handle_client(std::vector<Server> &servers, fd_set *monitored, std::vector<int> &keep_alive, std::map<pid_t, int> &cgi, char **envp)
 {
 	std::vector<int>	active_fds;
@@ -118,6 +130,7 @@ void handle_client(std::vector<Server> &servers, fd_set *monitored, std::vector<
 	for (int fd : active_fds)
 	{
 		std::optional<Request>	parsed_request;
+		Server					&config = find_active_server(fd, servers);
 		try
 		{
 			bool is_cgi = (cgi.contains(fd));
@@ -127,7 +140,6 @@ void handle_client(std::vector<Server> &servers, fd_set *monitored, std::vector<
 				cgi_fd = fd;
 				fd = cgi.find(fd)->second;
 			}
-			Server					&config = find_active_server(fd, servers);
 			RequestParser			parser;
 			std::string				status;
 			if (!is_cgi)
@@ -177,6 +189,12 @@ void handle_client(std::vector<Server> &servers, fd_set *monitored, std::vector<
 				}
 				else
 				{
+					if (!MethodAllowed(*route, parsed_request.value().getMethod()))
+					{
+						Response response(fd, &config, &parsed_request.value(), "405 Method Not Allowed");
+						response.Reply();
+						continue ;
+					}
 					std::string filelocation(route->root + "/" + parsed_request->getPath().substr(route->route.length()));
 					if (std::filesystem::exists(filelocation) && new_cgi(filelocation, config, *parsed_request, cgi, fd, envp))
 					{
@@ -191,14 +209,14 @@ void handle_client(std::vector<Server> &servers, fd_set *monitored, std::vector<
 			catch(const std::exception& e)
 			{
 				std::cerr << e.what() << '\n';
-				Response errorresponse(fd, "500 Internal Server Error");  
+				Response errorresponse(fd, &config, &parsed_request.value(), "500 Internal Server Error");  
 				errorresponse.Reply();
 			}
 			
 		}
 		catch(const std::exception& e)
 		{
-			Response errorresponse(fd, "400 Bad Request");
+			Response errorresponse(fd, &config, &parsed_request.value(), "400 Bad Request");
 			errorresponse.Reply();
 			close_socket(fd, servers, keep_alive);
 			continue;

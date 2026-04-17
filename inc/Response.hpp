@@ -26,12 +26,11 @@ class Response
 		std::string			get_timestr();
 		bool				find_contentype();
 							Response();
-		bool				MethodAllowed();
 		void				SetErrorPages();
 		void				extractcgiheaders();
 		bool				is_cgi();
 	public:
-		Response(const int fd, std::string status); // error constructor
+		Response(const int fd, const Server *config, const Request *request, std::string status); // error constructor
 		Response(const Server *config, const Request *request, const int fd, char **envp, int cgi_fd); //cgi constructor
 		Response(const Server *config, const Route_rule *route, const Request *request, const int fd, char **envp); //normal constructor
 		void	Reply();
