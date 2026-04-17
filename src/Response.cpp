@@ -68,7 +68,7 @@ bool Response::find_contentype()
 			{".png", "image/png"},
 			{".jpg", "image/jpeg"},
 			{".txt", "text/plain"}};
-		auto it = types.find(file_location.substr(file_location.find_last_of('.')));
+		std::map<std::string, std::string>::const_iterator it = types.find(file_location.substr(file_location.find_last_of('.')));
 		if (it != types.end())
 		{
 			content_type = it->second;
@@ -237,7 +237,7 @@ void Response::SetErrorPages()
 
 void Response::extractcgiheaders()
 {
-	auto start_body = body.find("\r\n\r\n");
+	size_t start_body = body.find("\r\n\r\n");
 	if (start_body != body.npos)
 	{
 		std::string cgiheaders = body.substr(0, start_body);

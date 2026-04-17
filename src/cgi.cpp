@@ -36,7 +36,7 @@ static char **setenv(char **envp, std::vector<std::pair<std::string, std::string
 
 static std::pair<pid_t, int> start_Cgi(Server &config, std::string cgi_program, std::string scriptname, std::string filelocation, Request &request, int sock, char **envp)
 {
-	auto headers = request.getHeaders();
+	const std::map<std::string, std::string >headers = request.getHeaders();
 	std::pair<std::string, std::string>	REQUEST_METHOD("REQUEST_METHOD", method_tostring(request.getMethod()));
 	std::pair<std::string, std::string>	QUERY_STRING("QUERY_STRING", request.getQuery());
 	std::pair<std::string, std::string>	CONTENT_TYPE("CONTENT_TYPE", headers.contains("content-type") ? headers.find("content-type")->second : "");

@@ -61,7 +61,7 @@ static Route_rule &find_correct_route(Server &serv, const Request &request)
 	}
 	if (valid_routes.empty())
 		throw std::runtime_error("no matching route");
-	auto longest = std::max_element(valid_routes.begin(), valid_routes.end());
+	std::vector<std::string>::iterator longest = std::max_element(valid_routes.begin(), valid_routes.end());
 	for (Route_rule &cur : serv.routes)
 	{
 		if (*longest == cur.route)
@@ -82,7 +82,7 @@ void close_socket(int fd, std::vector<Server> &servers, std::vector<int> &keep_a
 			break ;
 		}
 	}
-	auto it = std::find(keep_alive.begin(), keep_alive.end(), fd);
+	std::vector<int>::iterator it = std::find(keep_alive.begin(), keep_alive.end(), fd);
 	if (it != keep_alive.end())
 		keep_alive.erase(it);
 }
@@ -112,7 +112,7 @@ void handle_client(std::vector<Server> &servers, fd_set *monitored, std::vector<
 		if (FD_ISSET(fd, monitored))
 			active_fds.push_back(fd);
 	}
-	for (auto it = cgi.begin() ; it != cgi.end() ; it++)
+	for (std::map<pid_t, int>::iterator it = cgi.begin() ; it != cgi.end() ; it++)
 		if (FD_ISSET(it->first, monitored))
 			active_fds.push_back(it->first);
 	for (int fd : active_fds)
