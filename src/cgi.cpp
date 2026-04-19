@@ -80,10 +80,9 @@ static std::pair<pid_t, int> start_Cgi(Server &config, std::string cgi_program, 
 	}
 	if (!body.empty())
 		close(bodypipe[0]);
-	delete[] args_execve;
-	if (!request.getQuery().empty())
-		delete [] execenv;
 	close (pipes[1]);
+	delete[] args_execve;
+	delete [] execenv;
 	return (std::pair<int, int>(pipes[0], sock));
 }
 
