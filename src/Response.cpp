@@ -143,7 +143,7 @@ void Response::GET()
 	{
 		body = Cgi(p_cgi, file_location, envp);
 		if (body.empty())
-			status = "500 Internal Server Error";
+			this->status = ReplyStatus::InternalServerError;
 		size_t headers_end = body.find("\r\n\r\n");
 		if (headers_end != body.npos)
 		{
@@ -309,6 +309,11 @@ void Response::Reply()
 	std::string status = status_to_string(this->status);
 	std::string	to_send;
 
+	if (status == ReplyStatus::BadRequest)
+	{
+		if ()
+	}
+
 	std::cout << status << '\n';
 	headers.emplace(headers.begin(), "HTTP/1.1 " + status);
 	headers.emplace_back("Date: " + Date);
@@ -316,7 +321,7 @@ void Response::Reply()
 		headers.emplace_back("Location: " + route->redirection);
 	if (!content_type.empty())
 		headers.emplace_back("Content-type: " + content_type);
-	headers.emplace_back("content-length: " + std::to_string(body.length()));
+	headers.emplace_back("Content-length: " + std::to_string(body.length()));
 	headers.emplace_back("Connection: keep-alive"); // implement keep-alive logic
  	for (std::string &header : headers)
 	{
