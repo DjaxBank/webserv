@@ -37,14 +37,14 @@ static std::optional<Request> receive_data(int clientfd, RequestParser &parser, 
 	return parsed_request;
 }
 
-static Server &find_active_server(int target_fd, std::vector<Server> &servers)
+static Server *find_active_server(int target_fd, std::vector<Server> &servers)
 {
 	for (Server &serv : servers)
 	{
 		if (serv.sock.client_fds.contains(target_fd))
-			return serv;
+			return &serv;
 	}
-	std::abort();
+	return nullptr;
 }
 
 static Route_rule &find_correct_route(Server &serv, const Request &request)
@@ -103,6 +103,7 @@ void handle_client(std::vector<Server> &servers, fd_set *monitored, std::vector<
 {
 	std::vector<int>	active_fds;
 	static std::map<int, Request> saved_requests;
+	static std::map<int, Server> saved_configs;
 
 	for (Server &serv : servers)
 	{
@@ -130,7 +131,7 @@ void handle_client(std::vector<Server> &servers, fd_set *monitored, std::vector<
 	for (int fd : active_fds)
 	{
 		std::optional<Request>	parsed_request;
-		Server					&config = find_active_server(fd, servers);
+		Server					*config = find_active_server(fd, servers);
 		try
 		{
 			bool is_cgi = (cgi.contains(fd));
@@ -176,32 +177,35 @@ void handle_client(std::vector<Server> &servers, fd_set *monitored, std::vector<
 			}
 			Route_rule			*route;
 			if (!is_cgi) 
-				route = &find_correct_route(config, *parsed_request);
+				route = &find_correct_route(*config, *parsed_request);
 			try
 			{
 				if (is_cgi)
 				{
+					std::map<int, Server>::iterator saved_config = saved_configs.find(fd);
 					std::map<int, Request>::iterator saved_request = saved_requests.find(fd);
-					Response	response(&config, &saved_request->second, fd, envp, cgi_fd);
+					Response	response(&saved_config->second, &saved_request->second, fd, envp, cgi_fd);
 					response.Reply();
 					cgi.erase(cgi.find(cgi_fd));
+					saved_configs.erase(saved_config);
 					saved_requests.erase(saved_request);
 				}
 				else
 				{
 					if (!MethodAllowed(*route, parsed_request.value().getMethod()))
 					{
-						Response response(fd, &config, &parsed_request.value(), "405 Method Not Allowed");
+						Response response(fd, config, &parsed_request.value(), "405 Method Not Allowed");
 						response.Reply();
 						continue ;
 					}
 					std::string filelocation(route->root + "/" + parsed_request->getPath().substr(route->route.length()));
-					if (std::filesystem::exists(filelocation) && new_cgi(filelocation, config, *parsed_request, cgi, fd, envp))
+					if (std::filesystem::exists(filelocation) && new_cgi(filelocation, *config, *parsed_request, cgi, fd, envp))
 					{
 						saved_requests.emplace(std::pair<int, Request>{fd, parsed_request.value()});
+						saved_configs.emplace(std::pair<int, Server>{fd, *config});
 						continue ;
 					}
-					Response response(&config, route, &parsed_request.value(), fd, envp);
+					Response response(config, route, &parsed_request.value(), fd, envp);
 					response.Reply();
 				}
 				
@@ -209,14 +213,14 @@ void handle_client(std::vector<Server> &servers, fd_set *monitored, std::vector<
 			catch(const std::exception& e)
 			{
 				std::cerr << e.what() << '\n';
-				Response errorresponse(fd, &config, &parsed_request.value(), "500 Internal Server Error");  
+				Response errorresponse(fd, config, &parsed_request.value(), "500 Internal Server Error");  
 				errorresponse.Reply();
 			}
 			
 		}
 		catch(const std::exception& e)
 		{
-			Response errorresponse(fd, &config, &parsed_request.value(), "400 Bad Request");
+			Response errorresponse(fd, config, &parsed_request.value(), "400 Bad Request");
 			errorresponse.Reply();
 			close_socket(fd, servers, keep_alive);
 			continue;
