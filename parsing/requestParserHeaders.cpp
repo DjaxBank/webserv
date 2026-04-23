@@ -1,5 +1,9 @@
 #include "requestParser.hpp"
 #include <iostream>
+#include <cctype>
+#include <array>
+#include <string_view>
+#include <cstdint>
 
 /* Extracts the complete headers section from buffer
  * @param out_headers_section: extracted headers without trailing \r\n\r\n
@@ -25,10 +29,6 @@ bool RequestParser::extractHeadersSection(std::string& out_headers_section)
     m_buffer.erase(0, header_end + HTTP_CONSTANT::EMPTY_LINE_LENGTH);
     return true;
 }
- 
-#include <array>
-#include <string_view>
-#include <cstdint>
 
 constexpr static std::array<bool, 256> valid_key_chars = []()
 {
@@ -130,6 +130,19 @@ void RequestParser::parseHeaderLine(const std::string& header_line)
                 "Header contains UNSAFE character."
             );
         }
+    }
+    std::string lower_key = key;
+    for (size_t i = 0; i < lower_key.length(); i++)
+        lower_key[i] = std::tolower(static_cast<unsigned char>(lower_key[i]));
+    const std::map<std::string, std::string>& existing_headers = m_request.getHeaders();
+    if (lower_key == "host" && existing_headers.find("host") != existing_headers.end())
+    {
+        m_state = ParserState::ERROR;
+        throw HttpParseException(
+                ParseError::InvalidHeaderSyntax, 
+                ReplyStatus::BadRequest, 
+                "Duplicate Host header."
+            );
     }
     m_request.addHeader(key, value);
 }

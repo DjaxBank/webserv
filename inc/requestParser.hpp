@@ -21,30 +21,30 @@ enum class ParseError
     Incomplete,                  // Need more bytes (not an error by itself)
     InvalidRequestLine,          // Bad method/target/version syntax
     UnsupportedMethod,           // Method token parsed but not supported
-    InvalidHttpVersion,
-    InvalidUriSyntax,
-    UriTooLong,
-    MissingHostHeader,           // HTTP/1.1 Host required
-    InvalidHeaderSyntax,
-    HeaderSectionTooLarge,
-    UnsupportedTransferEncoding,
+    InvalidHttpVersion, 	// HTTP version is not supported (only HTTP/1.0 and HTTP/1.1 are supported)
+    InvalidUriSyntax, 	// URI syntax is invalid
+    UriTooLong, 		// URI is too long (max 2048 characters)
+    MissingHostHeader, 		// HTTP/1.1 Host required (required for HTTP/1.1)
+    InvalidHeaderSyntax, // Header syntax is invalid
+    HeaderSectionTooLarge, 	// Header section is too large (max 256kb)
+    UnsupportedTransferEncoding, // Transfer encoding is not supported
     ConflictingLengthFraming,    // TE + CL conflict
-    InvalidContentLength,
-    BodyTooLarge,
-    InvalidChunkedFraming,
-    InternalParserFailure
+    InvalidContentLength,	// Content length is invalid
+    BodyTooLarge, 			// Body is too large
+    InvalidChunkedFraming, // Chunked framing is invalid
+    InternalParserFailure // Internal parser failure
 };
 
 // CONSIDER MOVING TO ITS OWN header file
 enum class ReplyStatus
 {
     OK = 200, // request succeeded, server is retuning requested representation as response
-	Created = 201,
+	Created = 201, // request succeeded and a new resource was created as a result (201 created)
     MovedPermanently = 301, // Target resource now has a new permanent URI. Cleints should use the new uri (redirect)
     BadRequest = 400, // server cannot or will not process request due to client error (malformed syntax, invalid frmaing, deceptive routing, etc.)
-	Forbidden = 403,
-	NotFound = 404,
-	MethodNotAllowed = 405,
+	Forbidden = 403, // server refuses to respond to the request (forbidden resource)
+	NotFound = 404, // server cannot find the requested resource (404 not found)
+	MethodNotAllowed = 405, // server does not support the request method (405 method not allowed)
     RequestTimeout = 408, // server did not receive a complete request message in time it was prepared to wait
     ContentTooLarge = 413, // request content is larger thant he serve ris willing or able to process
     UriTooLong = 414, // target uri is longer than the server is willing to interpret
@@ -70,6 +70,8 @@ namespace HTTP_CONSTANT {
 	inline constexpr size_t MAX_BODY_SIZE = 100 * 1024 * 1024;
 	// Max size of chunks must be 8MB or less
 	inline constexpr size_t MAX_CHUNK_SIZE = 8 * 1024 * 1024;
+	// Max buffered chunked-body bytes waiting for completion
+	inline constexpr size_t MAX_CHUNKED_BUFFER_SIZE = 16 * 1024 * 1024;
 }
 
 std::string method_tostring(HttpMethod method);
@@ -131,7 +133,6 @@ class RequestParser
 		bool validateHTTPVersion(const std::string& version);
 		void validateContentLength(const std::string& value, size_t& out_length);
 		void parseChunkSize(const std::string& hex_value, size_t& out_size);
-		void extractChunkData(const std::string& chunked_section, size_t& pos, size_t chunk_size);
 		std::string extractKey(const std::string& header_token);
         std::string extractValue(const std::string& header_token);
         std::string trimValue(const std::string& value);
