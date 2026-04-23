@@ -39,6 +39,7 @@ enum class ParseError
 enum class ReplyStatus
 {
     OK = 200, // request succeeded, server is retuning requested representation as response
+	Created = 201,
     MovedPermanently = 301, // Target resource now has a new permanent URI. Cleints should use the new uri (redirect)
     BadRequest = 400, // server cannot or will not process request due to client error (malformed syntax, invalid frmaing, deceptive routing, etc.)
 	Forbidden = 403,
