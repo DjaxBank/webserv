@@ -10,6 +10,7 @@
 #include <ctime>
 #include "Response.hpp"
 
+// todo: we really need to add a timeout check here but i wasn't confident enough to implement it properly
 static std::optional<Request> receive_data(int clientfd, RequestParser &parser)
 {
 	char	buf[1024];
@@ -128,7 +129,7 @@ void handle_client(std::vector<Server> &servers, fd_set *monitored, std::vector<
 
 				if (!parsed_request.has_value())
 					continue;
-				
+
 				Route_rule &route = find_correct_route(config, parsed_request.value());
 				Response response(&config, &route, &parsed_request.value(), fd, envp);
 				response.Reply();

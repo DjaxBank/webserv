@@ -9,6 +9,25 @@ std::string method_tostring(HttpMethod method);
 std::string version_tostring(const HttpVersion &version);
 std::string state_tostring(ParserState state);
 
+// helper function to reject bare \n or \r in request section
+static void rejectBareLFInRequestSection(const std::string& buffer, ParserState state)
+{
+    for (size_t i = 0; i < buffer.size(); ++i)
+    {
+        if (buffer[i] == '\n' && (i == 0 || buffer[i - 1] != '\r'))
+        {
+            ParseError error_type = ParseError::InvalidHeaderSyntax;
+            if (state == ParserState::REQUEST_LINE)
+                error_type = ParseError::InvalidRequestLine;
+            throw HttpParseException(
+                error_type,
+                ReplyStatus::BadRequest,
+                "Found bare '\\n' before CRLF-terminated request section."
+            );
+        }
+    }
+}
+
 RequestParser::RequestParser() : m_buffer(), m_state(ParserState::REQUEST_LINE), m_request() {}
 
 RequestParser::RequestParser(const RequestParser& other)
@@ -35,7 +54,7 @@ ParserState RequestParser::getState() const
 std::string RequestParser::getHeader(const std::string& key) const
 {
     const auto& headers = m_request.getHeaders();
-    // Convert key to lowercase for case-insensitive lookup
+
     std::string lowerKey = key;
     for (size_t i = 0; i < lowerKey.length(); ++i)
         lowerKey[i] = std::tolower(static_cast<unsigned char>(lowerKey[i]));
@@ -75,6 +94,18 @@ bool RequestParser::fetchData(const std::string& data)
         );
     }
     m_buffer += data;
+    if (m_state != ParserState::BODY)
+    {
+        try
+        {
+            rejectBareLFInRequestSection(m_buffer, m_state);
+        }
+        catch (const HttpParseException&)
+        {
+            m_state = ParserState::ERROR;
+            throw;
+        }
+    }
     if (m_state != ParserState::BODY && m_buffer.size() > HTTP_CONSTANT::MAX_TOTAL_HEADER_SIZE)
     {
         m_state = ParserState::ERROR;
@@ -84,9 +115,17 @@ bool RequestParser::fetchData(const std::string& data)
             "Header fields too large."
         );
     }
+    if (m_state == ParserState::BODY && m_request.getChunked()
+        && m_buffer.size() > HTTP_CONSTANT::MAX_CHUNKED_BUFFER_SIZE)
+    {
+        m_state = ParserState::ERROR;
+        throw HttpParseException(
+            ParseError::BodyTooLarge,
+            ReplyStatus::ContentTooLarge,
+            "Chunked body buffer too large."
+        );
+    }
 
-    // ADD TIMEOUT CHECK HERE PROBABLY (do we have a time function?)
-    // maybe i should implement the CRLF validation here instead.
     if (m_state == ParserState::REQUEST_LINE)
     {
         if (m_buffer.find(HTTP_CONSTANT::CRLF) == std::string::npos)
