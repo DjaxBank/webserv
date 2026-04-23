@@ -7,7 +7,9 @@
 #include <filesystem>
 std::string Cgi(std::string cgi_program, std::string file, char **envp);
 
-Response::Response(const int fd, ReplyStatus status) : fd(fd), status(status) {};
+// if we are on an error path, we need to set things null to prevent crashes
+Response::Response(const int fd, ReplyStatus status)
+	: config(NULL), envp(NULL), fd(fd), request(NULL), route(NULL), status(status), method(HttpMethod::NONE), Date(get_timestr()) {};
 
 Response::Response(const Server *config, const Route_rule *route, const Request *request, const int fd, char **envp)
 	: config(config), envp(envp), fd(fd), request(request), route(route), method(request->getMethod()), Date(get_timestr())
@@ -166,13 +168,18 @@ void Response::GET()
 	}
 }
 
+
+// added != .end() guards to check if the headers are actually present and protect against crashes
 void Response::POST()
 {
 	const std::map<std::string, std::string> &headers = request->getHeaders();
+	std::map<std::string, std::string>::const_iterator content_type_it = headers.find("content-type");
+	std::map<std::string, std::string>::const_iterator content_length_it = headers.find("content-length");
 
-	if (headers.find("content-type")->second.find("multipart/form-data") == 0)
+	if (content_type_it != headers.end() && content_type_it->second.find("multipart/form-data") == 0
+		&& content_length_it != headers.end())
 	{
-		if (std::atoi(headers.find("content-length")->second.c_str()) <= config->MaxRequestBodySize)
+		if (std::atoi(content_length_it->second.c_str()) <= config->MaxRequestBodySize)
 		{
 			std::string uploaded_file(request->getBodyAsString());
 			std::string filename(uploaded_file.substr(uploaded_file.find("filename=") + 10));
@@ -182,10 +189,10 @@ void Response::POST()
 			std::string serverloc(file_location + "/" + filename);
 			std::ofstream file_on_server(serverloc);
 			file_on_server << uploaded_file;
-			status = "201 Created";
+			status = ReplyStatus::Created;
 		}
 		else
-			status = "413 Content Too Large";
+			status = ReplyStatus::ContentTooLarge;
 	}
 }
 
@@ -206,12 +213,43 @@ bool Response::MethodAllowed()
 	return allowed;
 }
 
+static std::string status_to_string(ReplyStatus status)
+{
+	switch(status)
+	{
+		case ReplyStatus::OK: return "200 OK";
+		case ReplyStatus::Created: return "201 Created";
+		case ReplyStatus::MovedPermanently: return "301 Moved Permanently";
+		case ReplyStatus::BadRequest: return "400 Bad Request";
+		case ReplyStatus::Forbidden: return "403 Forbidden";
+		case ReplyStatus::NotFound: return "404 Not Found";
+		case ReplyStatus::MethodNotAllowed: return "405 Method Not Allowed";
+		case ReplyStatus::RequestTimeout: return "408 Request Timeout";
+		case ReplyStatus::ContentTooLarge: return "413 Content Too Large";
+		case ReplyStatus::UriTooLong: return "414 URI Too Long";
+		case ReplyStatus::RequestHeaderFieldsTooLarge: return "431 Request Header Fields Too Large";
+		case ReplyStatus::NotImplemented: return "501 Not Implemented";
+		case ReplyStatus::InternalServerError:
+		default: return "500 Internal Server Error";
+	}
+}
+
 // todo -> add reply status to string mapper here
+// added content_type to error pages (if it is empty, set it to text/html)
+// maybe we should add a default content type to the response class instead of setting it in the error pages?
+// config can be null in one response path -> so in both cases check if it is null and if so, use the default error pages
+// at the end if body is empty, set it to the default error page and set the content type to text/html (fallthrough case)
 void Response::SetErrorPages()
 {
-	if (status == "403 Forbidden")
+	if (status == ReplyStatus::Forbidden)
 	{
-		if (config->Forbidden.empty())
+		if (config && !config->Forbidden.empty())
+		{
+			ExtractFile(config->Forbidden);
+			if (content_type.empty())
+				content_type = "text/html";
+		}
+		else
 		{
 			body = R"HTML(<!DOCTYPE html>
 <html lang="en">
@@ -227,13 +265,18 @@ void Response::SetErrorPages()
 	</main>
 </body>
 </html>)HTML";
+			content_type = "text/html";
+		}
+	}
+	else if (status == ReplyStatus::NotFound)
+	{
+		if (config && !config->NotFound.empty())
+		{
+			ExtractFile(config->NotFound);
+			if (content_type.empty())
+				content_type = "text/html";
 		}
 		else
-			ExtractFile(config->Forbidden);
-	}
-	else if (status == "404 Not Found")
-	{
-		if (config->NotFound.empty())
 		{
 			body = R"HTML(<!DOCTYPE html>
 <html lang="en">
@@ -249,81 +292,65 @@ void Response::SetErrorPages()
 		</main>
 	</body>
 </html>)HTML";
+			content_type = "text/html";
 		}
-		else
-			ExtractFile(config->NotFound);
 	}
-}
-
-static std::string status_to_string(ReplyStatus status)
-{
-	switch(status)
+	if (body.empty())
 	{
-		// add for the things i added
-		case ReplyStatus::MovedPermanently: return "301: Moved Permenantly";
-		case ReplyStatus::BadRequest: return "400: Bad Request";
-		case ReplyStatus::Forbidden: return "403: Forbidden";
-		case ReplyStatus::NotFound: return "404: Page Not Found";
-		case ReplyStatus::MethodNotAllowed: return "405: Method Not Allowed";
-		case ReplyStatus::RequestTimeout: return "408: Request Timeout";
-		case ReplyStatus::ContentTooLarge: return "413: Content Too Large";
-		case ReplyStatus::UriTooLong: return "414: URI Too Long";
-		case ReplyStatus::RequestHeaderFieldsTooLarge: return "431: Request Header Fields Too Large";
-		case ReplyStatus::NotImplemented: return "501: Method Not Implemeneted";
-		case ReplyStatus::InternalServerError:
-		default: return "500 Internal Server Error";
+		content_type = "text/html";
+		body = "<!DOCTYPE html><html><body><h1>" + status_to_string(status) + "</h1></body></html>";
 	}
 }
 
+// guard unset status and set to internal server error
+// guard method not allowed and set to method not allowed to not overwrite more specific errors
+// method checks only happen on healthy path, otherwise it will fall through to errors or to SetErrorPages()
+// added headers.clear in case of old headers being present from previous responses
+// added guards to check if request and route are not null to prevent crashes
+// send returns ssize_t (signed int) so we need to cast the result to size_t to prevent overflows
 void Response::Reply()
 {
-	// if (status == ReplyStatus::BadRequest)
-	// {
-	// 	if (!MethodAllowed())
-	// 		status = "405 Method Not Allowed"; // look into and add
-
-	// 	else
-	// 	{
-	// 		if (status == "403 Forbidden" || status == "404 Not Found")
-	// 			SetErrorPages();
-	// 		else if (status == "200 OK")
-	// 		{
-	// 			switch (method)
-	// 			{
-	// 				case (HttpMethod::GET):
-	// 					this->GET();
-	// 					break;
-	// 				case (HttpMethod::POST):
-	// 					this->POST();
-	// 					break;
-	// 				case (HttpMethod::DELETE):
-	// 					this->DELETE();
-	// 					break;
-	// 				default:
-	// 					break;
-	// 			}
-	// 		}
-	// 	}
-	// }
-
-	std::string status = status_to_string(this->status);
 	std::string	to_send;
 
-	if (status == ReplyStatus::BadRequest)
+	if (status == ReplyStatus::Unset)
+		status = ReplyStatus::InternalServerError;
+	if (request && route)
 	{
-		if ()
+		if (!MethodAllowed() && status == ReplyStatus::OK)
+			status = ReplyStatus::MethodNotAllowed;
+		else if (status == ReplyStatus::OK)
+		{
+			switch (method)
+			{
+				case (HttpMethod::GET):
+					this->GET();
+					break;
+				case (HttpMethod::POST):
+					this->POST();
+					break;
+				case (HttpMethod::DELETE):
+					this->DELETE();
+					break;
+				default:
+					status = ReplyStatus::NotImplemented;
+					break;
+			}
+		}
 	}
+	if (status != ReplyStatus::OK && status != ReplyStatus::Created && status != ReplyStatus::MovedPermanently)
+		SetErrorPages();
 
-	std::cout << status << '\n';
-	headers.emplace(headers.begin(), "HTTP/1.1 " + status);
+	std::cout << "status: " << status_to_string(status) << std::endl;
+	headers.clear();
+	headers.emplace_back("HTTP/1.1 " + status_to_string(status));
 	headers.emplace_back("Date: " + Date);
-	if (status == "301 Moved permanently")
+	if (status == ReplyStatus::MovedPermanently && route && !route->redirection.empty())
 		headers.emplace_back("Location: " + route->redirection);
 	if (!content_type.empty())
 		headers.emplace_back("Content-type: " + content_type);
 	headers.emplace_back("Content-length: " + std::to_string(body.length()));
-	headers.emplace_back("Connection: keep-alive"); // implement keep-alive logic
- 	for (std::string &header : headers)
+	headers.emplace_back("Connection: keep-alive");
+	for (std::string &header : headers)
 	{
 		to_send += header;
 		to_send += "\r\n";
@@ -336,7 +363,7 @@ void Response::Reply()
 		ssize_t val = send(fd, to_send.c_str() + send_bytes, to_send.length() - send_bytes, MSG_NOSIGNAL);
 		if (val < 0)
 			throw std::runtime_error("error sending to socket");
-		send_bytes += val;
+		send_bytes += static_cast<size_t>(val);
 	}
 }
 
