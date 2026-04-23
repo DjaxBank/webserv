@@ -65,13 +65,13 @@ static std::pair<pid_t, int> start_Cgi(Server &config, std::string cgi_program, 
 	args.push_back(cgi_program);
 	args.push_back(filelocation);
 	size_t size = args.size();
-	char **args_execve = new char *[size + 1];
-	for (size_t i = 0; i < size; i++)
-		args_execve[i] = const_cast <char*>(args[i].c_str());
-	args_execve[size] = nullptr;
 	pid_t pid = fork();
 	if (pid == 0)
 	{
+		char **args_execve = new char *[size + 1];
+		for (size_t i = 0; i < size; i++)
+			args_execve[i] = const_cast <char*>(args[i].c_str());
+		args_execve[size] = nullptr;
 		dup2(pipes[1], STDOUT_FILENO);
 		if (!body.empty())
 			dup2(bodypipe[0], STDIN_FILENO);
@@ -81,7 +81,6 @@ static std::pair<pid_t, int> start_Cgi(Server &config, std::string cgi_program, 
 	if (!body.empty())
 		close(bodypipe[0]);
 	close (pipes[1]);
-	delete[] args_execve;
 	delete [] execenv;
 	return (std::pair<int, int>(pipes[0], sock));
 }
