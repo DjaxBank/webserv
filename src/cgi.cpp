@@ -54,7 +54,7 @@ static std::pair<pid_t, int> start_Cgi(Server &config, std::string cgi_program, 
 	int bodypipe[2];
 	char **execenv = setenv(envp, to_add, final_strings);
 
-	if (!request.getBodyAsString().empty())
+	if (!body.empty())
 	{
 		pipe(bodypipe);
 		write(bodypipe[1], body.c_str(), body.length());
