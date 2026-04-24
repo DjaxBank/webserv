@@ -13,7 +13,7 @@
 #include "cgi.hpp"
 #include "Response.hpp"
 
-static std::optional<Request> receive_data(int clientfd, RequestParser &parser, std::vector<Server> &servers,  std::vector<int> &keep_alive)
+static std::optional<Request> receive_data(int clientfd, RequestParser &parser)
 {
 	char	buf[1024];
 
@@ -144,7 +144,7 @@ void handle_client(std::vector<Server> &servers, fd_set *monitored, std::vector<
 			{
 				try
 				{
-					parsed_request = receive_data(fd, parser, servers, keep_alive);
+					parsed_request = receive_data(fd, parser);
 				}
 				catch (const HttpParseException& e)
 				{
