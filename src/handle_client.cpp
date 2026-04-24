@@ -115,8 +115,9 @@ void handle_client(std::vector<Server> &servers, fd_set *monitored, std::vector<
 			int newfd = accept(serv.sock.get_socket_fd(), reinterpret_cast <sockaddr *>(&serv.sock.get_addr()), &addr_len); // store somewhere else
 			setsockopt(newfd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
 			setsockopt(newfd, SOL_SOCKET, SO_RCVTIMEO, &recvtimeout, sizeof(recvtimeout));
-			active_fds.push_back(newfd);
 			serv.sock.client_fds.emplace((std::pair<int, std::string>){newfd, serv.sock.get_ip()});
+			if (std::find(keep_alive.begin(), keep_alive.end(), newfd) == keep_alive.end())
+				keep_alive.push_back(newfd);
 			std::cout << "new connection " << std::to_string(newfd) << '\n';
 		}
 	}
@@ -165,15 +166,9 @@ void handle_client(std::vector<Server> &servers, fd_set *monitored, std::vector<
 						}
 						if (!parsed_request.has_value())
 						{
-							char buf;
-							if (recv(fd, &buf, 1, 0) <= 0)
-							{
-								close_socket(fd, servers, keep_alive);
-								continue;
-							}
-							std::cerr << "Failed to parse request from fd " << fd << ", skipping.\n";
-							throw std::runtime_error("");
-				}
+							close_socket(fd, servers, keep_alive);
+							continue;
+						}
 			}
 			Route_rule			*route;
 			if (!is_cgi) 
@@ -225,7 +220,5 @@ void handle_client(std::vector<Server> &servers, fd_set *monitored, std::vector<
 			close_socket(fd, servers, keep_alive);
 			continue;
 		}
-		if (std::find(keep_alive.begin(), keep_alive.end(), fd) == keep_alive.end())
-			keep_alive.push_back(fd);
-		}
 	}
+}
