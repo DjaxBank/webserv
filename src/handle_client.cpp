@@ -18,18 +18,14 @@ static std::optional<Request> receive_data(int clientfd, RequestParser &parser, 
 	char	buf[1024];
 
 	ssize_t bytes_read;
-	std::string request_raw;
 	std::optional<Request> parsed_request;
 
 	while(1)
 	{
-		if (fcntl(clientfd, F_GETFD) == -1)
-			close_socket(clientfd, servers, keep_alive);
 		bytes_read = recv(clientfd, buf, 1024, 0); 
 		if (bytes_read <= 0)
 			break;
 		std::string better_buf(buf, bytes_read);
-		request_raw += better_buf;
 		parsed_request = parser.parseClientRequest(better_buf);
 		if (parsed_request.has_value())
 			break ;
