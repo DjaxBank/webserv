@@ -5,6 +5,27 @@
 #include <iostream>
 #include <filesystem>
 
+// CONFIG PARSER OVERVIEW
+// - This file contains the hand-written parser for server blocks and route blocks.
+// - Flow:
+//   1. `importconfigfile()` in src/main.cpp finds top-level `server` blocks.
+//   2. `Server::Server()` consumes a server block and dispatches directives.
+//   3. `Server::ImportRoute()` consumes nested route blocks and fills `Route_rule`.
+//   4. `ImportPortPairs()` and `find_cgi_path()` are directive-level helpers.
+// - Keep these invariants in mind when reading or refactoring:
+//   * Block parsing must be brace-aware and fail on missing `{` or `}`.
+//   * Values extracted from config lines should be trimmed before use.
+//   * Directive matching is currently substring-based and therefore brittle.
+//   * Failure cases should include line numbers when possible.
+
+// find_cgi_path(cgi_program, envp)
+// - Input: a CGI program name and the process environment.
+// - Output: the first PATH entry where the program exists, or "" if not found.
+// - Flow: read PATH from envp -> split on ':' -> test each candidate with filesystem::exists.
+// - Failure cases to remember:
+//   * PATH missing from envp -> returns empty string.
+//   * Program not found -> returns empty string.
+//   * Existence is checked, but executability is not validated here.
 std::string Server::find_cgi_path(std::string cgi_program, char **envp)
 {
 	std::string					path;
@@ -34,6 +55,15 @@ std::string Server::find_cgi_path(std::string cgi_program, char **envp)
 	return "";
 }
 
+// ImportPortPairs(value)
+// - Input: the text following `listen =`.
+// - Output: sets `sock` from a parsed host:port pair.
+// - Flow: locate ':' -> trim spaces around host and port -> convert port -> construct Socket.
+// - Failure cases to test/document:
+//   * missing ':'
+//   * non-numeric port text
+//   * extra tokens after the port
+//   * leading/trailing spaces around the pair
 void Server::ImportPortPairs(std::string value)
 {
 	size_t delimpos = value.find_first_of(':', 0);
@@ -48,12 +78,28 @@ void Server::ImportPortPairs(std::string value)
 	sock = Socket({std::atoi(value.substr(delimpos + 1, right - delimpos).c_str()), value.substr(left, delimpos - left)});
 }
 
+// ImportRoute(fstream, linec)
+// - Input: the open config stream positioned at a route block and the current line counter.
+// - Output: appends a parsed Route_rule to `routes`.
+// - Flow:
+//   1. Read until a matching `}` is found.
+//   2. Collect non-empty block lines into `route_raw`.
+//   3. Parse each collected line by substring-matching known directives.
+//   4. Validate required route fields and then push the route.
+// - Failure cases to document/test:
+//   * missing opening `{` or closing `}`
+//   * EOF before block close
+//   * case-sensitive directive mismatches like `directoryListing`
+//   * malformed `methods =` content
+//   * missing required fields
 void Server::ImportRoute(std::ifstream &fstream, size_t &linec)
 {
 	const size_t route_start = linec;
 	Route_rule new_route;
 	std::vector<std::string>	route_raw;
-	bool open, closed, dir_list_present = false;
+	bool open = false;
+	bool closed = false;
+	bool dir_list_present = false;
 	while(fstream.is_open()&& !closed)
 	{
 		std::string line;
@@ -127,6 +173,20 @@ void Server::ImportRoute(std::ifstream &fstream, size_t &linec)
 	}
 }
 
+// Server::Server(fstream, envp)
+// - Input: the config stream and process environment.
+// - Output: a configured Server instance with socket, routes, CGI mappings, and error pages.
+// - Flow:
+//   1. Read lines until the server block closes.
+//   2. Require directives to appear only after an opening `{`.
+//   3. Dispatch recognized directives to specialized helpers.
+//   4. Record an error for unknown top-level directives.
+// - Failure cases to document/test:
+//   * directive before `{`
+//   * missing closing `}`
+//   * malformed `cgi =` lines
+//   * invalid listen syntax or numeric values
+//   * unknown directives at the top level
 Server::Server(std::ifstream &fstream, char **envp) : envp(envp)
 {
 	size_t				linec = 0;
