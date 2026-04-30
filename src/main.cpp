@@ -79,6 +79,20 @@ static void server_loop(std::vector<Server> servers, char **envp)
 	}
 }
 
+// importconfigfile(configfile, envp)
+// - Input: path to a configuration file and process environment.
+// - Output: vector of Server objects parsed from the file.
+// - Flow:
+//   1. Open the file and fail immediately if it cannot be opened.
+//   2. Scan line by line looking for top-level `server` tokens.
+//   3. Construct a Server using the same ifstream so the Server parser can consume its block.
+//   4. Throw on unexpected top-level text.
+// - Failure cases to test/document:
+//   * missing file
+//   * stray text at top level
+//   * false positives from substring matching on the word `server`
+//   * multiple server blocks in one file
+
 static std::vector<Server> importconfigfile(char *configfile, char **envp)
 {
 	std::ifstream config(configfile);
