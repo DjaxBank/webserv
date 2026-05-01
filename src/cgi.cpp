@@ -8,20 +8,15 @@
 #include "cgi.hpp"
 #include "functions.hpp"
 
-void check_timeout(std::vector<t_cgi> &cgi, std::vector<Server> &servers, std::vector<int> &keep_alive)
+void check_timeout(std::vector<t_cgi> &cgi)
 {
-	auto it = cgi.begin();
-	while(it != cgi.end())
+	for (t_cgi &cur : cgi)
 	{
-		if (std::chrono::steady_clock::now() - it->start_time >= std::chrono::seconds(3))
+		if (std::chrono::steady_clock::now() - cur.start_time >= std::chrono::seconds(3))
 		{
-			close(it->pipe);
-			close_socket(it->sock, servers, keep_alive);
-			kill(it->pid, SIGINT);
-			cgi.erase(it);
+			cur.active = false;
+			kill(cur.pid, SIGINT);
 		}
-		else
-			it++;
 	}
 }
 

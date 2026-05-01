@@ -119,7 +119,7 @@ void handle_client(std::vector<Server> &servers, fd_set *monitored, std::vector<
 			active_fds.push_back(fd);
 	}
 	for (t_cgi &cur : cgi)
-		if (FD_ISSET(cur.pipe, monitored))
+		if (FD_ISSET(cur.pipe, monitored) || cur.active == false)
 			active_fds.push_back(cur.pipe);
 	for (int fd : active_fds)
 	{
@@ -171,8 +171,16 @@ void handle_client(std::vector<Server> &servers, fd_set *monitored, std::vector<
 				{
 					std::map<int, Server>::iterator saved_config = saved_configs.find(fd);
 					std::map<int, Request>::iterator saved_request = saved_requests.find(fd);
-					Response	response(&saved_config->second, &saved_request->second, fd, envp, cgi_fd);
-					response.Reply();
+					if (find_cgi(cgi, fd)->active)
+					{
+						Response	response(&saved_config->second, &saved_request->second, fd, envp, cgi_fd);
+						response.Reply();
+					}
+					else
+					{
+						Response timeoutresponse(fd, &saved_config->second, &saved_request->second, "504 Gateway Timeout");  
+						timeoutresponse.Reply();
+					}
 					for (auto it = cgi.begin() ; it != cgi.end() ; it++)
 					{
 						if (it->pipe == cgi_fd)

@@ -59,7 +59,7 @@ static void server_loop(std::vector<Server> servers, char **envp)
 	while (server_running)
 	{
 		if (!cgi.empty())
-			check_timeout(cgi, servers, keep_alive);
+			check_timeout(cgi);
 		timeval timeout{3, 0};
 		reset_sockets(servers, socket_fds, keep_alive, cgi, max_fd);
 		if (select(max_fd + 1, &socket_fds, NULL, NULL, &timeout) > 0)
