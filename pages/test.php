@@ -1,36 +1,33 @@
 <?php
-// Basic FastCGI / PHP-FPM test
+header('Content-Type: text/html; charset=UTF-8');
 
-echo "<h1>PHP-FastCGI Test</h1>";
-
-// Check if running under FPM/FastCGI
-echo "<h2>Server API</h2>";
-echo "<pre>";
-echo php_sapi_name() . "\n";  // should show something like "fpm-fcgi"
-echo "</pre>";
-
-// Show key FastCGI / server variables
-echo "<h2>Server Variables</h2>";
-$vars = [
-    'SERVER_SOFTWARE',
-    'SERVER_NAME',
-    'SERVER_PROTOCOL',
-    'REQUEST_METHOD',
-    'REQUEST_URI',
-    'SCRIPT_FILENAME',
-    'DOCUMENT_ROOT',
-    'REMOTE_ADDR',
-];
-
-echo "<pre>";
-foreach ($vars as $var) {
-    echo $var . ": " . ($_SERVER[$var] ?? 'N/A') . "\n";
+function dump_value($value)
+{
+    return htmlspecialchars(print_r($value, true), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 }
+
+$rawBody = file_get_contents('php://input');
+
+echo "<!DOCTYPE html>\n";
+echo "<html lang=\"en\">\n<head><meta charset=\"UTF-8\"><title>PHP CGI Test</title></head>\n<body>\n";
+echo "<h1>PHP CGI Request Test</h1>";
+
+echo "<h2>Request Line Data</h2>";
+echo "<pre>";
+echo "REQUEST_METHOD: " . dump_value($_SERVER['REQUEST_METHOD'] ?? 'N/A') . "\n";
+echo "REQUEST_URI: " . dump_value($_SERVER['REQUEST_URI'] ?? 'N/A') . "\n";
+echo "QUERY_STRING: " . dump_value($_SERVER['QUERY_STRING'] ?? 'N/A') . "\n";
 echo "</pre>";
 
-// Show PHP version
-echo "<h2>PHP Version</h2>";
-echo phpversion();
+echo "<h2>Parsed Query Params</h2>";
+echo "<pre>" . dump_value($_GET) . "</pre>";
 
-// Optional: full phpinfo (uncomment if needed)
-// phpinfo();
+echo "<h2>Parsed POST Params</h2>";
+echo "<pre>" . dump_value($_POST) . "</pre>";
+
+echo "<h2>Raw Request Body</h2>";
+echo "<pre>" . dump_value($rawBody) . "</pre>";
+
+echo "<h2>PHP Version</h2>";
+echo "<pre>" . dump_value(phpversion()) . "</pre>";
+echo "</body>\n</html>";

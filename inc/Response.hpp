@@ -4,6 +4,8 @@
 class Response
 {
 	private:
+		bool				prevcgi = false;
+		const int			cgi_fd;
 		const				Server *config;
 		char				**envp;
 		const int			fd;
@@ -24,12 +26,13 @@ class Response
 		std::string			get_timestr();
 		bool				find_contentype();
 							Response();
-		bool				MethodAllowed();
 		void				SetErrorPages();
-		bool				is_cgi(std::string &p_cgi);
+		void				extractcgiheaders();
+		bool				is_cgi();
 	public:
-		Response(const int fd, std::string status);
-		Response(const Server *config, const Route_rule *route, const Request *request, const int fd, std::string status, char **envp);
+		Response(const int fd, const Server *config, const Request *request, std::string status); // error constructor
+		Response(const Server *config, const Request *request, const int fd, char **envp, int cgi_fd); //cgi constructor
+		Response(const Server *config, const Route_rule *route, const Request *request, const int fd, char **envp); //normal constructor
 		void	Reply();
 		~Response();
 };
