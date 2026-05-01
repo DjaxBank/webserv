@@ -85,17 +85,13 @@ void close_socket(int fd, std::vector<Server> &servers, std::vector<int> &keep_a
 
 static bool MethodAllowed(Route_rule &route, HttpMethod method)
 {
-	bool allowed = false;
 	for (HttpMethod cur : route.http_methods)
 		if (cur == method)
-		{
-			allowed = true;
-			break;
-		}
-	return allowed;
+			return true;
+	return false;
 }
 
-void handle_client(std::vector<Server> &servers, fd_set *monitored, std::vector<int> &keep_alive, std::map<pid_t, int> &cgi, char **envp)
+void handle_client(std::vector<Server> &servers, fd_set *monitored, std::vector<int> &keep_alive, std::vector<t_cgi> &cgi, char **envp)
 {
 	std::vector<int>	active_fds;
 	static std::map<int, Request> saved_requests;
@@ -108,7 +104,7 @@ void handle_client(std::vector<Server> &servers, fd_set *monitored, std::vector<
 			timeval tv {60, 0};
 			timeval recvtimeout {1, 0};
 			socklen_t addr_len = sizeof(struct sockaddr_in);
-			int newfd = accept(serv.sock.get_socket_fd(), reinterpret_cast <sockaddr *>(&serv.sock.get_addr()), &addr_len); // store somewhere else
+			int newfd = accept(serv.sock.get_socket_fd(), reinterpret_cast <sockaddr *>(&serv.sock.get_addr()), &addr_len);
 			setsockopt(newfd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
 			setsockopt(newfd, SOL_SOCKET, SO_RCVTIMEO, &recvtimeout, sizeof(recvtimeout));
 			serv.sock.client_fds.emplace((std::pair<int, std::string>){newfd, serv.sock.get_ip()});
@@ -122,21 +118,21 @@ void handle_client(std::vector<Server> &servers, fd_set *monitored, std::vector<
 		if (FD_ISSET(fd, monitored))
 			active_fds.push_back(fd);
 	}
-	for (std::map<pid_t, int>::iterator it = cgi.begin() ; it != cgi.end() ; it++)
-		if (FD_ISSET(it->first, monitored))
-			active_fds.push_back(it->first);
+	for (t_cgi &cur : cgi)
+		if (FD_ISSET(cur.pipe, monitored))
+			active_fds.push_back(cur.pipe);
 	for (int fd : active_fds)
 	{
 		std::optional<Request>	parsed_request;
 		Server					*config = find_active_server(fd, servers);
 		try
 		{
-			bool is_cgi = (cgi.contains(fd));
+			bool is_cgi = find_cgi(cgi, fd) != nullptr;
 			int cgi_fd;
 			if (is_cgi)
 			{
 				cgi_fd = fd;
-				fd = cgi.find(fd)->second;
+				fd = find_cgi(cgi, fd)->sock;
 			}
 			RequestParser			parser;
 			std::string				status;
@@ -177,7 +173,14 @@ void handle_client(std::vector<Server> &servers, fd_set *monitored, std::vector<
 					std::map<int, Request>::iterator saved_request = saved_requests.find(fd);
 					Response	response(&saved_config->second, &saved_request->second, fd, envp, cgi_fd);
 					response.Reply();
-					cgi.erase(cgi.find(cgi_fd));
+					for (auto it = cgi.begin() ; it != cgi.end() ; it++)
+					{
+						if (it->pipe == cgi_fd)
+						{
+							cgi.erase(it);
+							break ;
+						}
+					}
 					saved_configs.erase(saved_config);
 					saved_requests.erase(saved_request);
 				}

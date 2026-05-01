@@ -5,6 +5,25 @@
 #include <map>
 #include "Server.hpp"
 #include "requestParser.hpp"
+#include "cgi.hpp"
+#include "functions.hpp"
+
+void check_timeout(std::vector<t_cgi> &cgi, std::vector<Server> &servers, std::vector<int> &keep_alive)
+{
+	auto it = cgi.begin();
+	while(it != cgi.end())
+	{
+		if (std::chrono::steady_clock::now() - it->start_time >= std::chrono::seconds(3))
+		{
+			close(it->pipe);
+			close_socket(it->sock, servers, keep_alive);
+			kill(it->pid, SIGINT);
+			cgi.erase(it);
+		}
+		else
+			it++;
+	}
+}
 
 static char **setenv(char **envp, std::vector<std::pair<std::string, std::string> *> &to_add, std::vector<std::string> &final_strings)
 {
@@ -34,7 +53,7 @@ static char **setenv(char **envp, std::vector<std::pair<std::string, std::string
 	return execenv;
 }
 
-static std::pair<pid_t, int> start_Cgi(Server &config, std::string cgi_program, std::string scriptname, std::string filelocation, Request &request, int sock, char **envp)
+static t_cgi start_Cgi(Server &config, std::string cgi_program, std::string scriptname, std::string filelocation, Request &request, int sock, char **envp)
 {
 	const std::map<std::string, std::string >headers = request.getHeaders();
 	std::pair<std::string, std::string>	REQUEST_METHOD("REQUEST_METHOD", method_tostring(request.getMethod()));
@@ -52,8 +71,7 @@ static std::pair<pid_t, int> start_Cgi(Server &config, std::string cgi_program, 
 	std::string body = request.getBodyAsString();
 	int pipes[2];
 	int bodypipe[2];
-	char **execenv = setenv(envp, to_add, final_strings);
-
+	
 	if (!body.empty())
 	{
 		pipe(bodypipe);
@@ -68,6 +86,7 @@ static std::pair<pid_t, int> start_Cgi(Server &config, std::string cgi_program, 
 	pid_t pid = fork();
 	if (pid == 0)
 	{
+		char **execenv = setenv(envp, to_add, final_strings);
 		char **args_execve = new char *[size + 1];
 		for (size_t i = 0; i < size; i++)
 			args_execve[i] = const_cast <char*>(args[i].c_str());
@@ -76,13 +95,14 @@ static std::pair<pid_t, int> start_Cgi(Server &config, std::string cgi_program, 
 		if (!body.empty())
 			dup2(bodypipe[0], STDIN_FILENO);
 		execve(cgi_program.c_str(), args_execve, execenv);
+		delete [] execenv;
+		delete [] args_execve;
 		exit(1);
 	}
 	if (!body.empty())
 		close(bodypipe[0]);
 	close (pipes[1]);
-	delete [] execenv;
-	return (std::pair<int, int>(pipes[0], sock));
+	return ((t_cgi){pipes[0], sock, pid});
 }
 
 std::string read_cgi(int fd)
@@ -100,9 +120,9 @@ std::string read_cgi(int fd)
 	return cgi_response;
 }
 
-bool new_cgi(std::string file_location, Server &config, Request &request, std::map<int, int> &cgi, int fd, char **envp)
+bool new_cgi(std::string file_location, Server &config, Request &request, std::vector<t_cgi> &cgi, int fd, char **envp)
 {
-	if (!cgi.contains(fd))
+	if (find_cgi(cgi, fd) == nullptr)
 	{
 		std::string ext;
 		size_t i = file_location.find_last_of('.');
@@ -110,9 +130,19 @@ bool new_cgi(std::string file_location, Server &config, Request &request, std::m
 			ext = file_location.substr(file_location.find_last_of('.'));
 		if (config.cgiconfigs.contains(ext))
 		{
-			cgi.emplace(start_Cgi(config, config.cgiconfigs.find(ext)->second, request.getPath(), file_location, request, fd, envp));
+			cgi.push_back(start_Cgi(config, config.cgiconfigs.find(ext)->second, request.getPath(), file_location, request, fd, envp));
 			return true;
 		}
 	}
 	return false;
+}
+
+t_cgi *find_cgi(std::vector<t_cgi> &cgi, const int to_find)
+{
+	for (t_cgi &cur : cgi)
+	{
+		if (cur.pipe == to_find || cur.sock == to_find)
+			return &cur;
+	}
+	return nullptr;
 }
