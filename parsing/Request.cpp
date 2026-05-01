@@ -157,7 +157,7 @@ std::string Request::printHeaders() const
 {
 	std::string headers;
 
-	for (const auto& pair : this->getHeaders())
+	for (auto &pair : this->getHeaders())
 	{
 		headers += pair.first;
 		headers += ": ";

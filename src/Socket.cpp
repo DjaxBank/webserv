@@ -4,7 +4,21 @@
 #include <iostream>
 #include <string.h>
 #include <map>
+#include <sstream>
 #include <netdb.h>
+#include "Server.hpp"
+
+std::string Socket::get_ip()
+{
+	uint32_t ip = ntohl(addr.sin_addr.s_addr);
+
+	std::stringstream ss;
+	ss << ((ip >> 24) & 0xFF) << "."
+	<< ((ip >> 16) & 0xFF) << "."
+	<< ((ip >> 8) & 0xFF) << "."
+	<< (ip & 0xFF);
+	return ss.str();
+}
 
 void Socket::setinterface()
 {
