@@ -16,6 +16,6 @@ typedef struct t_cgi
 } t_cgi;
 
 std::string read_cgi(int fd);
-bool new_cgi(std::string file_location, Server &config, Request &request, std::vector<t_cgi> &cgi, int fd, char **envp);
+bool new_cgi(std::string file_location, Server *config, Request &request, std::vector<t_cgi> &cgi, int fd, char **envp);
 t_cgi *find_cgi(std::vector<t_cgi> &cgi, const int to_find);
 void check_timeout(std::vector<t_cgi> &cgi);

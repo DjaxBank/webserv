@@ -98,9 +98,10 @@ void close_socket(int fd, std::vector<Server> &servers, std::vector<int> &keep_a
 
 void handle_client(std::vector<Server> &servers, fd_set *monitored, std::vector<int> &keep_alive, std::vector<t_cgi> &cgi, char **envp)
 {
-	std::vector<int>	active_fds;
-	static std::map<int, Request> saved_requests;
-	static std::map<int, Server> saved_configs;
+	std::vector<int>					active_fds;
+	static std::map<int, Request>		saved_requests;
+	static std::map<int, Server>		saved_configs;
+	static std::map<int, Route_rule>	saved_routes;
 
 	for (Server &serv : servers)
 	{
@@ -118,33 +119,81 @@ void handle_client(std::vector<Server> &servers, fd_set *monitored, std::vector<
 			std::cout << "new connection " << std::to_string(newfd) << '\n';
 		}
 	}
+	for (t_cgi &cur : cgi)
+		if (FD_ISSET(cur.pipe, monitored) || cur.active == false)
+			active_fds.push_back(cur.pipe);
 	for (int fd : keep_alive)
 	{
 		if (FD_ISSET(fd, monitored))
 			active_fds.push_back(fd);
 	}
 	{
-		for (const int fd : active_fds)
+		for (int fd : active_fds)
 		{
 			std::optional<Request> parsed_request;
 			std::cout << "socket " << std::to_string(fd) << ' ';
 			Server			*config = find_active_server(fd, servers);
 			RequestParser	parser;
+			Route_rule 		*route = nullptr;
+			int 			cgi_fd;
 			bool			should_close = false;
-			
+			bool			is_cgi = find_cgi(cgi, fd) != nullptr;
+			if (is_cgi)
+			{
+				cgi_fd = fd;
+				fd = find_cgi(cgi, fd)->sock;
+			}
 			try
 			{
-				parsed_request = receive_data(fd, parser);
-
-				if (!parsed_request.has_value())
+				if (!is_cgi)
 				{
-					close_socket(fd, servers, keep_alive);
-					continue;
+					parsed_request	= receive_data(fd, parser);
+					
+					if (!parsed_request.has_value())
+					{
+						close_socket(fd, servers, keep_alive);
+						continue;
+					}
+					route			= &find_correct_route(config, parsed_request.value());
+					if (new_cgi(route->root + "/" + parsed_request->getPath().substr(route->route.length()), config, parsed_request.value(), cgi, fd, envp))
+					{
+						saved_requests.emplace((std::pair<int, Request>){fd, parsed_request.value()});
+						saved_configs.emplace((std::pair<int, Server>){fd, *config});
+						saved_routes.emplace((std::pair<int, Route_rule>){fd, *route});
+					}
+					else
+					{
+						Response response(config, route, &parsed_request.value(), fd, envp);
+						response.Reply();
+					}
 				}
-
-				Route_rule &route = find_correct_route(config, parsed_request.value());
-				Response response(config, &route, &parsed_request.value(), fd, envp);
-				response.Reply();
+				else if (is_cgi)
+				{
+					std::map<int, Server>::iterator		saved_config	= saved_configs.find(fd);
+					std::map<int, Request>::iterator	saved_request	= saved_requests.find(fd);
+					std::map<int, Route_rule>::iterator	saved_route		= saved_routes.find(fd);
+					if (find_cgi(cgi, fd)->active)
+					{
+						Response	response(&saved_config->second, &saved_route->second, &saved_request->second, fd, envp, cgi_fd);
+						response.Reply();
+					}
+					else
+					{
+						Response timeoutresponse(fd, ReplyStatus::RequestTimeout);  
+						timeoutresponse.Reply();
+					}
+					for (auto it = cgi.begin() ; it != cgi.end() ; it++)
+					{
+						if (it->pipe == cgi_fd)
+						{
+							cgi.erase(it);
+							break ;
+						}
+					}
+					saved_configs.erase(saved_config);
+					saved_requests.erase(saved_request);
+					saved_routes.erase(saved_route);
+				}
 			}
 			catch(const HttpParseException& e)
 			{
