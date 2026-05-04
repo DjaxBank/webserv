@@ -18,8 +18,8 @@ static std::optional<Request> receive_data(int clientfd, RequestParser &parser)
 {
 	char	buf[1024];
 
-	ssize_t bytes_read;
-	std::optional<Request> parsed_request;
+	ssize_t					bytes_read;
+	std::optional<Request>	parsed_request;
 
 	while(1)
 	{
@@ -88,31 +88,18 @@ void close_socket(int fd, std::vector<Server> &servers, std::vector<int> &keep_a
 // else on generic error we send internal server error
 // should_close is used to determine if the connection should be closed after the response is sent
 // if not and the connection is not in the keep-alive list, add it to the list
-// void (std::vector<Server> &servers, fd_set *monitored, std::vector<int> &keep_alive, char **envp)
-// {
-// 	for (HttpMethod cur : route.http_methods)
-// 		if (cur == method)
-// 			return true;
-// 	return false;
-// }
 
-void handle_client(std::vector<Server> &servers, fd_set *monitored, std::vector<int> &keep_alive, std::vector<t_cgi> &cgi, char **envp)
+static std::vector<int> setup_active(std::vector<Server> &servers, fd_set *monitored, std::vector<int> &keep_alive, std::vector<t_cgi> &cgi)
 {
-	std::vector<int>					active_fds;
-	static std::map<int, Request>		saved_requests;
-	static std::map<int, Server>		saved_configs;
-	static std::map<int, Route_rule>	saved_routes;
-
+	std::vector<int> active_fds;
 	for (Server &serv : servers)
 	{
 		if (FD_ISSET(serv.sock.get_socket_fd(), monitored))
 		{
 			timeval tv {60, 0};
-			timeval recvtimeout {1, 0};
 			socklen_t addr_len = sizeof(struct sockaddr_in);
 			int newfd = accept(serv.sock.get_socket_fd(), reinterpret_cast <sockaddr *>(&serv.sock.get_addr()), &addr_len);
 			setsockopt(newfd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
-			setsockopt(newfd, SOL_SOCKET, SO_RCVTIMEO, &recvtimeout, sizeof(recvtimeout));
 			serv.sock.client_fds.emplace((std::pair<int, std::string>){newfd, serv.sock.get_ip()});
 			if (std::find(keep_alive.begin(), keep_alive.end(), newfd) == keep_alive.end())
 				keep_alive.push_back(newfd);
@@ -120,114 +107,116 @@ void handle_client(std::vector<Server> &servers, fd_set *monitored, std::vector<
 		}
 	}
 	for (t_cgi &cur : cgi)
-		if (FD_ISSET(cur.pipe, monitored) || cur.active == false)
+		if (FD_ISSET(cur.pipe, monitored))
 			active_fds.push_back(cur.pipe);
 	for (int fd : keep_alive)
-	{
 		if (FD_ISSET(fd, monitored))
 			active_fds.push_back(fd);
-	}
-	{
-		for (int fd : active_fds)
+	return active_fds;
+}
+
+void execute_cgi(int fd, std::map<int, Request> &saved_requests, std::map<int, Server> &saved_configs, std::map<int, Route_rule> &saved_routes, std::vector<t_cgi> &cgi, char **envp, int cgi_fd)
+{
+		std::map<int, Request>::iterator	saved_request	= saved_requests.find(fd);
+		std::map<int, Server>::iterator		saved_config	= saved_configs.find(fd);
+		std::map<int, Route_rule>::iterator	saved_route		= saved_routes.find(fd);
+		if (find_cgi(cgi, fd)->active)
 		{
-			std::optional<Request> parsed_request;
-			std::cout << "socket " << std::to_string(fd) << ' ';
-			Server			*config = find_active_server(fd, servers);
-			RequestParser	parser;
-			Route_rule 		*route = nullptr;
-			int 			cgi_fd;
-			bool			should_close = false;
-			bool			is_cgi = find_cgi(cgi, fd) != nullptr;
-			if (is_cgi)
+			Response	response(&saved_config->second, &saved_route->second, &saved_request->second, fd, envp, cgi_fd);
+			response.Reply();
+		}
+		else
+		{
+			Response timeoutresponse(fd, ReplyStatus::RequestTimeout);  
+			timeoutresponse.Reply();
+		}
+		for (auto it = cgi.begin() ; it != cgi.end() ; it++)
+		{
+			if (it->pipe == cgi_fd)
 			{
-				cgi_fd = fd;
-				fd = find_cgi(cgi, fd)->sock;
+				cgi.erase(it);
+				break ;
 			}
+		}
+		saved_configs.erase(saved_config);
+		saved_requests.erase(saved_request);
+		saved_routes.erase(saved_route);
+}
+
+void handle_client(std::vector<Server> &servers, fd_set *monitored, std::vector<int> &keep_alive, std::vector<t_cgi> &cgi, char **envp)
+{
+	std::vector<int>					active_fds = setup_active(servers, monitored, keep_alive, cgi);
+	static std::map<int, Request>		saved_requests;
+	static std::map<int, Server>		saved_configs;
+	static std::map<int, Route_rule>	saved_routes;
+
+	for (int fd : active_fds)
+	{
+		std::optional<Request>	parsed_request;
+		Server					*config = find_active_server(fd, servers);
+		RequestParser			parser;
+		Route_rule 				*route = nullptr;
+		int 					cgi_fd;
+		bool					is_cgi = find_cgi(cgi, fd) != nullptr;
+	
+		std::cout << "socket " << std::to_string(fd) << ' ';
+		if (is_cgi)
+		{
+			cgi_fd = fd;
+			fd = find_cgi(cgi, fd)->sock;
+		}
+		try
+		{
+			if (!is_cgi)
+			{
+				parsed_request	= receive_data(fd, parser);
+				
+				if (!parsed_request.has_value())
+				{
+					close_socket(fd, servers, keep_alive);
+					continue;
+				}
+				route = &find_correct_route(config, parsed_request.value());
+				if (new_cgi(route->root + "/" + parsed_request->getPath().substr(route->route.length()), config, parsed_request.value(), cgi, fd, envp))
+				{
+					saved_requests.emplace((std::pair<int, Request>){fd, parsed_request.value()});
+					saved_configs.emplace((std::pair<int, Server>){fd, *config});
+					saved_routes.emplace((std::pair<int, Route_rule>){fd, *route});
+				}
+				else
+				{
+					Response response(config, route, &parsed_request.value(), fd, envp);
+					response.Reply();
+				}
+			}
+			else if (is_cgi)
+				execute_cgi(fd, saved_requests, saved_configs, saved_routes, cgi, envp, cgi_fd);
+		}
+		catch(const HttpParseException& e)
+		{
+			std::cerr << e.what() << '\n';
 			try
 			{
-				if (!is_cgi)
-				{
-					parsed_request	= receive_data(fd, parser);
-					
-					if (!parsed_request.has_value())
-					{
-						close_socket(fd, servers, keep_alive);
-						continue;
-					}
-					route			= &find_correct_route(config, parsed_request.value());
-					if (new_cgi(route->root + "/" + parsed_request->getPath().substr(route->route.length()), config, parsed_request.value(), cgi, fd, envp))
-					{
-						saved_requests.emplace((std::pair<int, Request>){fd, parsed_request.value()});
-						saved_configs.emplace((std::pair<int, Server>){fd, *config});
-						saved_routes.emplace((std::pair<int, Route_rule>){fd, *route});
-					}
-					else
-					{
-						Response response(config, route, &parsed_request.value(), fd, envp);
-						response.Reply();
-					}
-				}
-				else if (is_cgi)
-				{
-					std::map<int, Server>::iterator		saved_config	= saved_configs.find(fd);
-					std::map<int, Request>::iterator	saved_request	= saved_requests.find(fd);
-					std::map<int, Route_rule>::iterator	saved_route		= saved_routes.find(fd);
-					if (find_cgi(cgi, fd)->active)
-					{
-						Response	response(&saved_config->second, &saved_route->second, &saved_request->second, fd, envp, cgi_fd);
-						response.Reply();
-					}
-					else
-					{
-						Response timeoutresponse(fd, ReplyStatus::RequestTimeout);  
-						timeoutresponse.Reply();
-					}
-					for (auto it = cgi.begin() ; it != cgi.end() ; it++)
-					{
-						if (it->pipe == cgi_fd)
-						{
-							cgi.erase(it);
-							break ;
-						}
-					}
-					saved_configs.erase(saved_config);
-					saved_requests.erase(saved_request);
-					saved_routes.erase(saved_route);
-				}
+				Response error_response(fd, e.getStatus());
+				error_response.Reply();
 			}
-			catch(const HttpParseException& e)
+			catch(const std::exception& error)
 			{
-				std::cerr << e.what() << '\n';
-				should_close = true;
-
-				try
-				{
-					Response error_response(fd, e.getStatus());
-					error_response.Reply();
-				}
-				catch(const std::exception& error)
-				{
-					std::cerr << "Failed to send error response: " << error.what() << '\n';
-				}
+				std::cerr << "Failed to send error response: " << error.what() << '\n';
 			}
-			catch (const std::exception& e)
+		}
+		catch (const std::exception& e)
+		{
+			std::cerr << "Error handling request: " << e.what() << '\n';
+			try
 			{
-				std::cerr << "Error handling request: " << e.what() << '\n';
-				should_close = true;
-				try
-				{
-					Response error_response(fd, ReplyStatus::InternalServerError);
-					error_response.Reply();
-				}
-				catch (const std::exception& error)
-				{
-					std::cerr << "Failed to send error response: " << error.what() << '\n';
-				}
+				Response error_response(fd, ReplyStatus::InternalServerError);
+				error_response.Reply();
 			}
-			if (should_close)
-				close_socket(fd, servers, keep_alive);
-			else if (std::find(keep_alive.begin(), keep_alive.end(), fd) == keep_alive.end())
-				keep_alive.push_back(fd);
+			catch (const std::exception& error)
+			{
+				std::cerr << "Failed to send error response: " << error.what() << '\n';
+			}
 		}
 	}
 }
