@@ -41,9 +41,12 @@ build-debug-parser: debug_parser
 debug_parser: parser_debug.o parsing/requestParser.o parsing/Request.o parsing/requestParserRequestLine.o parsing/requestParserHeaders.o parsing/requestParserBody.o parsing/requestParserUtils.o parsing/requestURIParsing.o parsing/requestParserException.o
 	$(CC) $(FLAGS) $(CPPFLAGS) $^ -o debug_parser
 
+test-config: tests/config_parser_tests.o src/Server.o src/Socket.o
+	$(CC) $(FLAGS) $(CPPFLAGS) $^ -o config_parser_tests
+
 parser_debug.o: parser_debug.cpp Makefile
 	$(CC) $(FLAGS) $(CPPFLAGS) -c parser_debug.cpp -o parser_debug.o
 
-.PHONY: build-debug-parser debug_parser
+.PHONY: build-debug-parser debug_parser test-config
 
 -include ${DEPENDS}  

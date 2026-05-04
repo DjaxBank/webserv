@@ -13,6 +13,7 @@
 #include "cgi.hpp"
 #include "Response.hpp"
 
+// todo: we really need to add a timeout check here but i wasn't confident enough to implement it properly
 static std::optional<Request> receive_data(int clientfd, RequestParser &parser)
 {
 	char	buf[1024];
@@ -43,14 +44,14 @@ static Server *find_active_server(int target_fd, std::vector<Server> &servers)
 	return nullptr;
 }
 
-static Route_rule &find_correct_route(Server &serv, const Request &request)
+static Route_rule &find_correct_route(Server *serv, const Request &request)
 {
 	std::vector<std::string> valid_routes;
 	std::string uri = request.getPath();
 	
 	if (uri.empty())
 		throw std::runtime_error("couldn't handle request");
-	for (Route_rule &cur : serv.routes)
+	for (Route_rule &cur : serv->routes)
 	{
 		if (uri == cur.route || uri.find(cur.route + "/") == 0 || cur.route == "/")
 			valid_routes.push_back(cur.route);
@@ -58,7 +59,7 @@ static Route_rule &find_correct_route(Server &serv, const Request &request)
 	if (valid_routes.empty())
 		throw std::runtime_error("no matching route");
 	std::vector<std::string>::iterator longest = std::max_element(valid_routes.begin(), valid_routes.end());
-	for (Route_rule &cur : serv.routes)
+	for (Route_rule &cur : serv->routes)
 	{
 		if (*longest == cur.route)
 			return cur;
@@ -72,9 +73,9 @@ void close_socket(int fd, std::vector<Server> &servers, std::vector<int> &keep_a
 	close(fd);
 	for (Server &serv : servers)
 	{
-		if (serv.sock.client_fds.find(fd) != serv.sock.client_fds.end())
+		if (serv.sock.client_fds.contains(fd))
 		{
-			serv.sock.client_fds.erase(serv.sock.client_fds.find(fd));
+			serv.sock.client_fds.erase(serv.sock.client_fds.find(fd)->first);
 			break ;
 		}
 	}
@@ -83,13 +84,17 @@ void close_socket(int fd, std::vector<Server> &servers, std::vector<int> &keep_a
 		keep_alive.erase(it);
 }
 
-static bool MethodAllowed(Route_rule &route, HttpMethod method)
-{
-	for (HttpMethod cur : route.http_methods)
-		if (cur == method)
-			return true;
-	return false;
-}
+// if specific parse error we handle it
+// else on generic error we send internal server error
+// should_close is used to determine if the connection should be closed after the response is sent
+// if not and the connection is not in the keep-alive list, add it to the list
+// void (std::vector<Server> &servers, fd_set *monitored, std::vector<int> &keep_alive, char **envp)
+// {
+// 	for (HttpMethod cur : route.http_methods)
+// 		if (cur == method)
+// 			return true;
+// 	return false;
+// }
 
 void handle_client(std::vector<Server> &servers, fd_set *monitored, std::vector<int> &keep_alive, std::vector<t_cgi> &cgi, char **envp)
 {
@@ -118,115 +123,62 @@ void handle_client(std::vector<Server> &servers, fd_set *monitored, std::vector<
 		if (FD_ISSET(fd, monitored))
 			active_fds.push_back(fd);
 	}
-	for (t_cgi &cur : cgi)
-		if (FD_ISSET(cur.pipe, monitored) || cur.active == false)
-			active_fds.push_back(cur.pipe);
-	for (int fd : active_fds)
 	{
-		std::optional<Request>	parsed_request;
-		Server					*config = find_active_server(fd, servers);
-		try
+		for (const int fd : active_fds)
 		{
-			bool is_cgi = find_cgi(cgi, fd) != nullptr;
-			int cgi_fd;
-			if (is_cgi)
-			{
-				cgi_fd = fd;
-				fd = find_cgi(cgi, fd)->sock;
-			}
-			RequestParser			parser;
-			std::string				status;
-			if (!is_cgi)
-			{
-				try
-				{
-					parsed_request = receive_data(fd, parser);
-				}
-				catch (const HttpParseException& e)
-				{
-					std::cerr << "Parse error on fd " << fd
-							<< " (status " << e.statusCode() << "): "
-							<< e.what() << '\n';
-							throw std::runtime_error("");
-							
-						}
-						catch (const std::exception& e)
-						{
-							std::cerr << "Error handling request on fd " << fd
-							<< ": " << e.what() << '\n';
-							throw std::runtime_error("");
-						}
-						if (!parsed_request.has_value())
-						{
-							close_socket(fd, servers, keep_alive);
-							continue;
-						}
-			}
-			Route_rule			*route;
-			if (!is_cgi) 
-				route = &find_correct_route(*config, *parsed_request);
+			std::optional<Request> parsed_request;
+			std::cout << "socket " << std::to_string(fd) << ' ';
+			Server			*config = find_active_server(fd, servers);
+			RequestParser	parser;
+			bool			should_close = false;
+			
 			try
 			{
-				if (is_cgi)
+				parsed_request = receive_data(fd, parser);
+
+				if (!parsed_request.has_value())
 				{
-					std::map<int, Server>::iterator saved_config = saved_configs.find(fd);
-					std::map<int, Request>::iterator saved_request = saved_requests.find(fd);
-					if (find_cgi(cgi, fd)->active)
-					{
-						Response	response(&saved_config->second, &saved_request->second, fd, envp, cgi_fd);
-						response.Reply();
-					}
-					else
-					{
-						Response timeoutresponse(fd, &saved_config->second, &saved_request->second, "504 Gateway Timeout");  
-						timeoutresponse.Reply();
-					}
-					for (auto it = cgi.begin() ; it != cgi.end() ; it++)
-					{
-						if (it->pipe == cgi_fd)
-						{
-							cgi.erase(it);
-							break ;
-						}
-					}
-					saved_configs.erase(saved_config);
-					saved_requests.erase(saved_request);
+					close_socket(fd, servers, keep_alive);
+					continue;
 				}
-				else
-				{
-					if (!MethodAllowed(*route, parsed_request.value().getMethod()))
-					{
-						Response response(fd, config, &parsed_request.value(), "405 Method Not Allowed");
-						response.Reply();
-						continue ;
-					}
-					std::string filelocation(route->root + "/" + parsed_request->getPath().substr(route->route.length()));
-					if (std::filesystem::exists(filelocation) && new_cgi(filelocation, *config, *parsed_request, cgi, fd, envp))
-					{
-						saved_requests.emplace(std::pair<int, Request>{fd, parsed_request.value()});
-						saved_configs.emplace(std::pair<int, Server>{fd, *config});
-						continue ;
-					}
-					Response response(config, route, &parsed_request.value(), fd, envp);
-					response.Reply();
-				}
-				
+
+				Route_rule &route = find_correct_route(config, parsed_request.value());
+				Response response(config, &route, &parsed_request.value(), fd, envp);
+				response.Reply();
 			}
-			catch(const std::exception& e)
+			catch(const HttpParseException& e)
 			{
 				std::cerr << e.what() << '\n';
-				Response errorresponse(fd, config, &parsed_request.value(), "500 Internal Server Error");  
-				errorresponse.Reply();
+				should_close = true;
+
+				try
+				{
+					Response error_response(fd, e.getStatus());
+					error_response.Reply();
+				}
+				catch(const std::exception& error)
+				{
+					std::cerr << "Failed to send error response: " << error.what() << '\n';
+				}
 			}
-			
-		}
-		catch(const std::exception& e)
-		{
-			Response errorresponse(fd, config, &parsed_request.value(), "400 Bad Request");
-			errorresponse.Reply();
-			std::cout << "closing in handle_client: ";
-			close_socket(fd, servers, keep_alive);
-			continue;
+			catch (const std::exception& e)
+			{
+				std::cerr << "Error handling request: " << e.what() << '\n';
+				should_close = true;
+				try
+				{
+					Response error_response(fd, ReplyStatus::InternalServerError);
+					error_response.Reply();
+				}
+				catch (const std::exception& error)
+				{
+					std::cerr << "Failed to send error response: " << error.what() << '\n';
+				}
+			}
+			if (should_close)
+				close_socket(fd, servers, keep_alive);
+			else if (std::find(keep_alive.begin(), keep_alive.end(), fd) == keep_alive.end())
+				keep_alive.push_back(fd);
 		}
 	}
 }
