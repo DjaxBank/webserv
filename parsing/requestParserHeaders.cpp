@@ -1,5 +1,9 @@
 #include "requestParser.hpp"
 #include <iostream>
+#include <cctype>
+#include <array>
+#include <string_view>
+#include <cstdint>
 
 /* Extracts the complete headers section from buffer
  * @param out_headers_section: extracted headers without trailing \r\n\r\n
@@ -13,18 +17,18 @@ bool RequestParser::extractHeadersSection(std::string& out_headers_section)
     
     if (header_end > HTTP_CONSTANT::MAX_TOTAL_HEADER_SIZE)
     {
-        setErrorAndReturn("total header size too large", "");
-        return false;
+        m_state = ParserState::ERROR;
+        throw HttpParseException(
+            ParseError::HeaderSectionTooLarge, 
+            ReplyStatus::RequestHeaderFieldsTooLarge, 
+            "Header fields too large."
+        );
     }
     
     out_headers_section = m_buffer.substr(0, header_end);
     m_buffer.erase(0, header_end + HTTP_CONSTANT::EMPTY_LINE_LENGTH);
     return true;
 }
- 
-#include <array>
-#include <string_view>
-#include <cstdint>
 
 constexpr static std::array<bool, 256> valid_key_chars = []()
 {
@@ -76,15 +80,19 @@ static bool check_safe_value_char(char c)
  * @param header_line: the line to parse (format: "Key: Value")
  * @return: true if valid and added, false on error
  */
-bool RequestParser::parseHeaderLine(const std::string& header_line)
+void RequestParser::parseHeaderLine(const std::string& header_line)
 {
     if (header_line.empty())
-        return true;
+        return;
     
     if (header_line.length() > HTTP_CONSTANT::MAX_HEADER_SIZE)
     {
-        setErrorAndReturn("header line too long", header_line);
-        return false;
+        m_state = ParserState::ERROR;
+        throw HttpParseException(
+            ParseError::HeaderSectionTooLarge, 
+            ReplyStatus::RequestHeaderFieldsTooLarge, 
+            "Header line too large."
+        );
     }
     
     std::string key = extractKey(header_line);
@@ -92,14 +100,22 @@ bool RequestParser::parseHeaderLine(const std::string& header_line)
     {
         if (!check_safe_key_char(c))
         {
-            setErrorAndReturn("invalid char found in header key", header_line);
-            return false;
+            m_state = ParserState::ERROR;
+            throw HttpParseException(
+                ParseError::InvalidHeaderSyntax, 
+                ReplyStatus::BadRequest, 
+                "Header contains UNSAFE character."
+            );
         }
     }
     if (key.empty())
     {
-        setErrorAndReturn("invalid header key", header_line);
-        return false;
+        m_state = ParserState::ERROR;
+        throw HttpParseException(
+            ParseError::InvalidHeaderSyntax, 
+            ReplyStatus::BadRequest, 
+            "Header contains UNSAFE character."
+        );
     }
     
     std::string value = extractValue(header_line);
@@ -107,19 +123,35 @@ bool RequestParser::parseHeaderLine(const std::string& header_line)
     {
         if (!check_safe_value_char(c))
         {
-            setErrorAndReturn("invalid char found in header value", header_line);
-            return false;
+            m_state = ParserState::ERROR;
+            throw HttpParseException(
+                ParseError::InvalidHeaderSyntax, 
+                ReplyStatus::BadRequest, 
+                "Header contains UNSAFE character."
+            );
         }
     }
+    std::string lower_key = key;
+    for (size_t i = 0; i < lower_key.length(); i++)
+        lower_key[i] = std::tolower(static_cast<unsigned char>(lower_key[i]));
+    const std::map<std::string, std::string>& existing_headers = m_request.getHeaders();
+    if (lower_key == "host" && existing_headers.find("host") != existing_headers.end())
+    {
+        m_state = ParserState::ERROR;
+        throw HttpParseException(
+                ParseError::InvalidHeaderSyntax, 
+                ReplyStatus::BadRequest, 
+                "Duplicate Host header."
+            );
+    }
     m_request.addHeader(key, value);
-    return true;
 }
 
 /* Processes all header lines in the headers section
  * @param headers_section: complete headers text
  * @return: true if all headers parsed successfully
  */
-bool RequestParser::processHeaderLines(const std::string& headers_section)
+void RequestParser::processHeaderLines(const std::string& headers_section)
 {
     size_t pos = 0;
     while (pos < headers_section.length())
@@ -128,30 +160,33 @@ bool RequestParser::processHeaderLines(const std::string& headers_section)
         if (line_end == std::string::npos)
         {
             std::string header_line = headers_section.substr(pos);
-            if (!parseHeaderLine(header_line))
-                return false;
+            parseHeaderLine(header_line);
             break;
         }
         
         std::string header_line = headers_section.substr(pos, line_end - pos);
-        
-        if (!parseHeaderLine(header_line))
-            return false;
+        parseHeaderLine(header_line);
         
         pos = line_end + HTTP_CONSTANT::CRLF_LENGTH;
     }
-    return true;
 }
 
 /* Parses metadata relating to body information, determines if body is present
     and its related headers are valid */
-bool RequestParser::parseBodyMetadata()
+void RequestParser::parseBodyMetadata()
 {
     const std::string t_encoding = getHeader("Transfer-Encoding");
     const std::string c_length = getHeader("Content-Length");
 
     if (!t_encoding.empty() && !c_length.empty())
-        return fail("transfer encoding and content length present in header", "");
+    {
+        m_state = ParserState::ERROR;
+        throw HttpParseException(
+                ParseError::ConflictingLengthFraming, 
+                ReplyStatus::BadRequest, 
+                "Transfer-Encoding and Content-Length are both present."
+            );
+    }
 
     if (!t_encoding.empty())
     {
@@ -161,28 +196,32 @@ bool RequestParser::parseBodyMetadata()
         {
             m_request.setChunked(true);
             m_state = ParserState::BODY;
-            return true;
         }
-        return fail("unsupported transfer-encoding method", "");
+        else
+        {
+            m_state = ParserState::ERROR;
+            throw HttpParseException(
+                    ParseError::UnsupportedTransferEncoding, 
+                    ReplyStatus::BadRequest, 
+                    "Unsupported Transfer Encoding method."
+                );
+        }
     }
-
-    if (!c_length.empty())
+    else if (!c_length.empty())
     {
         size_t content_len;
-        if (!validateContentLength(c_length, content_len))
-            return fail("malformed content-length", "");
-        // TODO: consider rejecting oversized bodies here instead of waiting until parseContentLengthBody
-        // would save memory by not buffering data we'll reject anyway
+
+        validateContentLength(c_length, content_len);
         m_request.setContentLen(content_len);
         m_state = ParserState::BODY;
-        return true;
     }
-    
-    m_state = ParserState::COMPLETE;
-    return true;
+    else
+    {
+        m_state = ParserState::COMPLETE;
+    }
 }
 
-bool RequestParser::validateCRLF(const std::string &string)
+    void RequestParser::validateCRLF(const std::string &string)
 {
     for (size_t i = 0; i < string.size(); i++)
     {
@@ -190,20 +229,51 @@ bool RequestParser::validateCRLF(const std::string &string)
         {
             if (i == 0 || string[i - 1] != '\r')
             {
-                setErrorAndReturn("found bare '\n' in header", string);
-                return false;
+                if (m_state == ParserState::REQUEST_LINE)
+                {
+                    m_state = ParserState::ERROR;
+                    throw HttpParseException(
+                        ParseError::InvalidRequestLine, 
+                        ReplyStatus::BadRequest, 
+                        "Found bare '\n' in request line."
+                    );
+                }
+                else
+                {
+                    m_state = ParserState::ERROR;
+                    throw HttpParseException(
+                        ParseError::InvalidHeaderSyntax, 
+                        ReplyStatus::BadRequest, 
+                        "Found bare '\n' in header line."
+                    );
+                }
             }
         }
         if (string[i] == '\r')
         {
             if (i + 1 >= string.size() || string[i + 1] != '\n')
             {
-                setErrorAndReturn("found bare '\r' in header", string);
-                return false;
+                if (m_state == ParserState::REQUEST_LINE)
+                {
+                    m_state = ParserState::ERROR;
+                    throw HttpParseException(
+                        ParseError::InvalidRequestLine, 
+                        ReplyStatus::BadRequest, 
+                        "Found bare '\r' in request line."
+                    );
+                }
+                else
+                {
+                    m_state = ParserState::ERROR;
+                    throw HttpParseException(
+                        ParseError::InvalidHeaderSyntax, 
+                        ReplyStatus::BadRequest, 
+                        "Found bare '\r' in header line."
+                    );
+                }
             }    
         }
     }
-    return true;
 }
 
 /* Parses header of HTTP request and adds them to a request's key:value map */
@@ -212,17 +282,8 @@ void RequestParser::parseHeaders()
     std::string headers_section;
     if (!extractHeadersSection(headers_section))
         return;
-
-    if (!validateCRLF(headers_section))
-        return;
-    
-    if (!processHeaderLines(headers_section))
-        return;
-    
-    if (!validateRequiredHeaders())
-        return;
-    
-    if (!parseBodyMetadata())
-        return;
-    
+    validateCRLF(headers_section);
+    processHeaderLines(headers_section);
+    validateRequiredHeaders();
+    parseBodyMetadata();
 }

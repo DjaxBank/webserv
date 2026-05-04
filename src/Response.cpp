@@ -7,43 +7,41 @@
 #include <filesystem>
 #include "cgi.hpp"
 
-Response::Response(const int fd, const Server *config, const Request *request, std::string status) : cgi_fd(-1), config(config),fd(fd), request(request), status(status), Date(get_timestr()) {};
-
-Response::Response(const Server *config, const Request *request, const int fd, char **envp, int cgi_fd)
-	: prevcgi(true), cgi_fd(cgi_fd), config(config), envp(envp), fd(fd), request(request), status("200 OK"), method(request->getMethod()), Date(get_timestr()) {};
+// if we are on an error path, we need to set things null to prevent crashes
+Response::Response(const int fd, ReplyStatus status)
+	: config(NULL), envp(NULL), fd(fd), request(NULL), route(NULL), status(status), method(HttpMethod::NONE), Date(get_timestr()) {};
 
 Response::Response(const Server *config, const Route_rule *route, const Request *request, const int fd, char **envp)
-	: cgi_fd(-1), config(config), envp(envp), fd(fd), request(request), route(route), method(request->getMethod()), Date(get_timestr())
+	: config(config), envp(envp), fd(fd), request(request), route(route), method(request->getMethod()), Date(get_timestr())
 {
+	this->status = ReplyStatus::Unset;
 	if (!route->redirection.empty())
-		status = "301 Moved Permanently";
+		this->status = ReplyStatus::MovedPermanently;
 	else
 	{
 		file_location = route->root + "/" + request->getPath().substr(route->route.length());
-		if (this->status.empty())
+		std::error_code ec;
+		if (std::filesystem::exists(file_location, ec))
 		{
 			std::error_code ec;
 			if (std::filesystem::exists(file_location, ec))
 			{
-				if (ec)
-				{
-					if (ec.value() == EACCES)
-						this->status = "403 Forbidden";
-					else
-						this->status = "500 Internal Server Error";
-				}
+				if (ec.value() == EACCES)
+					this->status = ReplyStatus::Forbidden;
 				else
-				{
-					std::ifstream test(file_location);
-					if (!test.is_open())
-						this->status = "403 Forbidden";
-					else
-						this->status = "200 OK";
-				}
+					this->status = ReplyStatus::InternalServerError;
 			}
 			else
-				this->status = "404 Not Found";
+			{
+				std::ifstream test(file_location);
+				if (!test.is_open())
+					this->status = ReplyStatus::Forbidden;
+				else
+					this->status = ReplyStatus::OK;
+			}
 		}
+		else
+			this->status = ReplyStatus::NotFound;
 	}
 }
 std::string Response::get_timestr()
@@ -128,17 +126,47 @@ void Response::ExtractFile(std::string file_path)
 
 void Response::GET()
 {
-	ExtractFile(file_location);
-	find_contentype();
+	std::string p_cgi;
+
+	if (is_cgi(p_cgi))
+	{
+		body = Cgi(p_cgi, file_location, envp);
+		if (body.empty())
+			this->status = ReplyStatus::InternalServerError;
+		size_t headers_end = body.find("\r\n\r\n");
+		if (headers_end != body.npos)
+		{
+			std::string	cgi_headers = body.substr(0, headers_end + 2);
+			body.erase(0, headers_end + 4);
+			while (!cgi_headers.empty())
+			{
+				size_t delimloc = cgi_headers.find("\r\n");
+				std::string new_header = cgi_headers.substr(0, delimloc);
+				if (new_header.find("Content-type:") == 0)
+					content_type = new_header.substr(14);
+				cgi_headers.erase(0, delimloc + 2);
+			}
+		}
+	}
+	else
+	{
+		ExtractFile(file_location);
+		find_contentype();
+	}
 }
 
+
+// added != .end() guards to check if the headers are actually present and protect against crashes
 void Response::POST()
 {
 	const std::map<std::string, std::string> &headers = request->getHeaders();
+	std::map<std::string, std::string>::const_iterator content_type_it = headers.find("content-type");
+	std::map<std::string, std::string>::const_iterator content_length_it = headers.find("content-length");
 
-	if (headers.find("content-type")->second.find("multipart/form-data") == 0)
+	if (content_type_it != headers.end() && content_type_it->second.find("multipart/form-data") == 0
+		&& content_length_it != headers.end())
 	{
-		if (std::atoi(headers.find("content-length")->second.c_str()) <= config->MaxRequestBodySize)
+		if (std::atoi(content_length_it->second.c_str()) <= config->MaxRequestBodySize)
 		{
 			std::string uploaded_file(request->getBodyAsString());
 			std::string filename(uploaded_file.substr(uploaded_file.find("filename=") + 10));
@@ -148,10 +176,10 @@ void Response::POST()
 			std::string serverloc(file_location + "/" + filename);
 			std::ofstream file_on_server(serverloc);
 			file_on_server << uploaded_file;
-			status = "201 Created";
+			status = ReplyStatus::Created;
 		}
 		else
-			status = "413 Content Too Large";
+			status = ReplyStatus::ContentTooLarge;
 	}
 }
 
@@ -160,16 +188,85 @@ void Response::DELETE()
 	std::filesystem::remove(file_location);
 }
 
+bool Response::MethodAllowed()
+{
+	bool allowed = false;
+	for (HttpMethod cur : route->http_methods)
+		if (cur == method)
+		{
+			allowed = true;
+			break;
+		}
+	return allowed;
+}
+
+static std::string status_to_string(ReplyStatus status)
+{
+	switch(status)
+	{
+		case ReplyStatus::OK: return "200 OK";
+		case ReplyStatus::Created: return "201 Created";
+		case ReplyStatus::MovedPermanently: return "301 Moved Permanently";
+		case ReplyStatus::BadRequest: return "400 Bad Request";
+		case ReplyStatus::Forbidden: return "403 Forbidden";
+		case ReplyStatus::NotFound: return "404 Not Found";
+		case ReplyStatus::MethodNotAllowed: return "405 Method Not Allowed";
+		case ReplyStatus::RequestTimeout: return "408 Request Timeout";
+		case ReplyStatus::ContentTooLarge: return "413 Content Too Large";
+		case ReplyStatus::UriTooLong: return "414 URI Too Long";
+		case ReplyStatus::RequestHeaderFieldsTooLarge: return "431 Request Header Fields Too Large";
+		case ReplyStatus::NotImplemented: return "501 Not Implemented";
+		case ReplyStatus::InternalServerError:
+		default: return "500 Internal Server Error";
+	}
+}
+
+// todo -> add reply status to string mapper here
+// added content_type to error pages (if it is empty, set it to text/html)
+// maybe we should add a default content type to the response class instead of setting it in the error pages?
+// config can be null in one response path -> so in both cases check if it is null and if so, use the default error pages
+// at the end if body is empty, set it to the default error page and set the content type to text/html (fallthrough case)
 void Response::SetErrorPages()
 {
-	if (status == "403 Forbidden" || status == "404 Not Found")
+	if (status == ReplyStatus::Forbidden)
 	{
-		if (status == "403 Forbidden")
+		if (config && !config->Forbidden.empty())
 		{
-			if (config->Forbidden.empty())
-			{
-				body = R"HTML(<!DOCTYPE html>
-	<html lang="en">
+			ExtractFile(config->Forbidden);
+			if (content_type.empty())
+				content_type = "text/html";
+		}
+		else
+		{
+			body = R"HTML(<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+	<title>403 Forbidden</title>
+</head>
+<body>
+	<main class="card">
+		<h1>403</h1>
+		<p>Sorry, you can't access this page.</p>
+	</main>
+</body>
+</html>)HTML";
+			content_type = "text/html";
+		}
+	}
+	else if (status == ReplyStatus::NotFound)
+	{
+		if (config && !config->NotFound.empty())
+		{
+			ExtractFile(config->NotFound);
+			if (content_type.empty())
+				content_type = "text/html";
+		}
+		else
+		{
+			body = R"HTML(<!DOCTYPE html>
+<html lang="en">
 	<head>
 		<meta charset="UTF-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -181,85 +278,34 @@ void Response::SetErrorPages()
 			<p>Sorry, you can't access this page.</p>
 		</main>
 	</body>
-	</html>)HTML";
-			}
-			else
-				ExtractFile(config->Forbidden);
-		}
-		else if (status == "404 Not Found")
-		{
-			if (config->NotFound.empty())
-			{
-				body = R"HTML(<!DOCTYPE html>
-	<html lang="en">
-		<head>
-			<meta charset="UTF-8" />
-			<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-			<title>404 Not Found</title>
-		</head>
-		<body>
-			<main class="card">
-				<h1>404</h1>
-				<p>Sorry, the page you’re looking for doesn’t exist..</p>
-			</main>
-		</body>
-	</html>)HTML";
-			}
-			else
-				ExtractFile(config->NotFound);
+</html>)HTML";
+			content_type = "text/html";
 		}
 	}
-	else
+	if (body.empty())
 	{
-		const std::string left = R"HTML(<!DOCTYPE html>
-	<html lang="en">
-		<head>
-			<meta charset="UTF-8" />
-			<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-			<title>)HTML";
-		const std::string right = R"HTML(</title>
-	</head>
-	</html>)HTML";
-		body = left + status + right;
+		content_type = "text/html";
+		body = "<!DOCTYPE html><html><body><h1>" + status_to_string(status) + "</h1></body></html>";
 	}
 }
 
-void Response::extractcgiheaders()
-{
-	size_t start_body = body.find("\r\n\r\n");
-	if (start_body != body.npos)
-	{
-		std::string cgiheaders = body.substr(0, start_body);
-		body.erase(0, start_body + 4);
-		while(!cgiheaders.empty())
-		{
-			size_t pos = cgiheaders.find("\r\n");
-			if (pos == cgiheaders.npos )
-				pos = cgiheaders.length();
-			std::string cur = cgiheaders.substr(0, pos);
-			if (cur.starts_with("Content-type: "))
-				content_type = cur.substr(14);
-			else
-				headers.push_back(cur);
-			cgiheaders.erase(0, pos + 2);
-		}
-	}
-}
-
+// guard unset status and set to internal server error
+// guard method not allowed and set to method not allowed to not overwrite more specific errors
+// method checks only happen on healthy path, otherwise it will fall through to errors or to SetErrorPages()
+// added headers.clear in case of old headers being present from previous responses
+// added guards to check if request and route are not null to prevent crashes
+// send returns ssize_t (signed int) so we need to cast the result to size_t to prevent overflows
 void Response::Reply()
 {
-	if (status == "200 OK" || status.empty())
-	{
-		if (this->prevcgi)
-		{
-			body = read_cgi(cgi_fd);
-			if (!body.empty())
-				extractcgiheaders();
-			else
-				status = "500 Internal Server Error";
+	std::string	to_send;
 
-		}
-		else
+	if (status == ReplyStatus::Unset)
+		status = ReplyStatus::InternalServerError;
+	if (request && route)
+	{
+		if (!MethodAllowed() && status == ReplyStatus::OK)
+			status = ReplyStatus::MethodNotAllowed;
+		else if (status == ReplyStatus::OK)
 		{
 			switch (method)
 			{
@@ -273,23 +319,25 @@ void Response::Reply()
 					this->DELETE();
 					break;
 				default:
+					status = ReplyStatus::NotImplemented;
 					break;
 			}
 		}
 	}
-	else if (status != "301 Moved Permanently")
+	if (status != ReplyStatus::OK && status != ReplyStatus::Created && status != ReplyStatus::MovedPermanently)
 		SetErrorPages();
-	std::string	to_send;
-	std::cout << this->config->sock.client_fds.find(fd)->second << ": " << method_tostring(this->request->getMethod()) << ' ' << this->request->getPath() << ' ' << status << ' ' << "(connection " << std::to_string(fd) << ")\n";
-	headers.emplace(headers.begin(), "HTTP/1.1 " + status);
+
+	std::cout << "status: " << status_to_string(status) << std::endl;
+	headers.clear();
+	headers.emplace_back("HTTP/1.1 " + status_to_string(status));
 	headers.emplace_back("Date: " + Date);
-	if (status == "301 Moved Permanently")
+	if (status == ReplyStatus::MovedPermanently && route && !route->redirection.empty())
 		headers.emplace_back("Location: " + route->redirection);
 	if (!content_type.empty())
 		headers.emplace_back("Content-type: " + content_type);
-	headers.emplace_back("content-length: " + std::to_string(body.length()));
+	headers.emplace_back("Content-length: " + std::to_string(body.length()));
 	headers.emplace_back("Connection: keep-alive");
- 	for (std::string &header : headers)
+	for (std::string &header : headers)
 	{
 		to_send += header;
 		to_send += "\r\n";
@@ -302,7 +350,7 @@ void Response::Reply()
 		ssize_t val = send(fd, to_send.c_str() + send_bytes, to_send.length() - send_bytes, MSG_NOSIGNAL);
 		if (val < 0)
 			throw std::runtime_error("error sending to socket");
-		send_bytes += val;
+		send_bytes += static_cast<size_t>(val);
 	}
 }
 

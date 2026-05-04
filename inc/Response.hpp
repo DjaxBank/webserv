@@ -11,7 +11,7 @@ class Response
 		const int			fd;
 		const Request		*request;
 		const Route_rule	*route;
-		std::string			status;
+		ReplyStatus			status;
 		HttpMethod			method;
 		std::string			Date;
 		std::string			content_type;
@@ -30,9 +30,8 @@ class Response
 		void				extractcgiheaders();
 		bool				is_cgi();
 	public:
-		Response(const int fd, const Server *config, const Request *request, std::string status); // error constructor
-		Response(const Server *config, const Request *request, const int fd, char **envp, int cgi_fd); //cgi constructor
-		Response(const Server *config, const Route_rule *route, const Request *request, const int fd, char **envp); //normal constructor
+		Response(const int fd, ReplyStatus status);
+		Response(const Server *config, const Route_rule *route, const Request *request, const int fd, char **envp);
 		void	Reply();
 		~Response();
 };

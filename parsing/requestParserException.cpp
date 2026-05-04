@@ -1,8 +1,13 @@
 #include "requestParser.hpp"
 
-HttpParseException::HttpParseException(int status, const std::string& msg) : m_status(status), m_msg(msg) {}
+HttpParseException::HttpParseException(ParseError error, ReplyStatus status, const std::string& msg) : m_error(error), m_status(status), m_msg(msg) {}
 
-int HttpParseException::statusCode() const noexcept
+ParseError HttpParseException::getError() const noexcept
+{
+	return m_error;
+}
+
+ReplyStatus HttpParseException::getStatus() const noexcept
 {
 	return m_status;
 }

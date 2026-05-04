@@ -9,6 +9,25 @@ std::string method_tostring(HttpMethod method);
 std::string version_tostring(const HttpVersion &version);
 std::string state_tostring(ParserState state);
 
+// helper function to reject bare \n or \r in request section
+static void rejectBareLFInRequestSection(const std::string& buffer, ParserState state)
+{
+    for (size_t i = 0; i < buffer.size(); ++i)
+    {
+        if (buffer[i] == '\n' && (i == 0 || buffer[i - 1] != '\r'))
+        {
+            ParseError error_type = ParseError::InvalidHeaderSyntax;
+            if (state == ParserState::REQUEST_LINE)
+                error_type = ParseError::InvalidRequestLine;
+            throw HttpParseException(
+                error_type,
+                ReplyStatus::BadRequest,
+                "Found bare '\\n' before CRLF-terminated request section."
+            );
+        }
+    }
+}
+
 RequestParser::RequestParser() : m_buffer(), m_state(ParserState::REQUEST_LINE), m_request() {}
 
 RequestParser::RequestParser(const RequestParser& other)
@@ -35,7 +54,7 @@ ParserState RequestParser::getState() const
 std::string RequestParser::getHeader(const std::string& key) const
 {
     const auto& headers = m_request.getHeaders();
-    // Convert key to lowercase for case-insensitive lookup
+
     std::string lowerKey = key;
     for (size_t i = 0; i < lowerKey.length(); ++i)
         lowerKey[i] = std::tolower(static_cast<unsigned char>(lowerKey[i]));
@@ -51,22 +70,62 @@ std::string RequestParser::getHeader(const std::string& key) const
 
 /* Accumulates incoming data and validates buffer state
  * @param data: incoming data chunk
- * @return: false if error or need more data, true if ready to parse
+ * @return: false if needs more data, true if complete, throw if error
  * Moves onto parsing when that section's data is ready to process
  */
 bool RequestParser::fetchData(const std::string& data)
 {
-    if (m_state == ParserState::ERROR || m_state == ParserState::COMPLETE)
-        return false;
+    if (m_state == ParserState::ERROR)
+    {
+        m_state = ParserState::ERROR;
+        throw HttpParseException(
+            ParseError::InternalParserFailure, 
+            ReplyStatus::InternalServerError, 
+            "parseClientRequest called after parser entered ERROR state."
+        );
+    }
+    if (m_state == ParserState::COMPLETE)
+    {
+        m_state = ParserState::ERROR;
+        throw HttpParseException(
+            ParseError::InternalParserFailure,
+            ReplyStatus::InternalServerError,
+            "parseClientRequest called after parser reached COMPLETE state."
+        );
+    }
     m_buffer += data;
+    if (m_state != ParserState::BODY)
+    {
+        try
+        {
+            rejectBareLFInRequestSection(m_buffer, m_state);
+        }
+        catch (const HttpParseException&)
+        {
+            m_state = ParserState::ERROR;
+            throw;
+        }
+    }
     if (m_state != ParserState::BODY && m_buffer.size() > HTTP_CONSTANT::MAX_TOTAL_HEADER_SIZE)
     {
-        setErrorAndReturn("buffer exceeded max header size", "");
-        return false;
+        m_state = ParserState::ERROR;
+        throw HttpParseException(
+            ParseError::HeaderSectionTooLarge, 
+            ReplyStatus::RequestHeaderFieldsTooLarge, 
+            "Header fields too large."
+        );
+    }
+    if (m_state == ParserState::BODY && m_request.getChunked()
+        && m_buffer.size() > HTTP_CONSTANT::MAX_CHUNKED_BUFFER_SIZE)
+    {
+        m_state = ParserState::ERROR;
+        throw HttpParseException(
+            ParseError::BodyTooLarge,
+            ReplyStatus::ContentTooLarge,
+            "Chunked body buffer too large."
+        );
     }
 
-    // ADD TIMEOUT CHECK HERE PROBABLY (do we have a time function?)
-    // maybe i should implement the CRLF validation here instead.
     if (m_state == ParserState::REQUEST_LINE)
     {
         if (m_buffer.find(HTTP_CONSTANT::CRLF) == std::string::npos)
@@ -90,33 +149,13 @@ bool RequestParser::fetchData(const std::string& data)
 std::optional<Request> RequestParser::parseClientRequest(const std::string& data)
 {
     if (!fetchData(data))
-    {
-        if (m_state == ParserState::ERROR)
-            throw HttpParseException(400, "Error fetching request data");
-        else
-            return std::nullopt;
-    }
-
+        return std::nullopt;
     if (m_state == ParserState::REQUEST_LINE)
-    {
         parseRequestLine();
-        if (m_state == ParserState::ERROR)
-            throw HttpParseException(400, "Invalid request line");
-    }
-
     if (m_state == ParserState::HEADERS)
-    {
         parseHeaders();
-        if (m_state == ParserState::ERROR)
-            throw HttpParseException(400, "Invalid headers");
-    }
-
     if (m_state == ParserState::BODY)
-    {
         parseBody();
-        if (m_state == ParserState::ERROR)
-            throw HttpParseException(400, "Invalid body");
-    }
     if (m_state == ParserState::COMPLETE)
         return std::make_optional(m_request);
     else

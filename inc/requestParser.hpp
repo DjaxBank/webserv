@@ -15,6 +15,45 @@ enum class ParserState
 	ERROR,
 };
 
+enum class ParseError
+{
+    None,
+    Incomplete,                  // Need more bytes (not an error by itself)
+    InvalidRequestLine,          // Bad method/target/version syntax
+    UnsupportedMethod,           // Method token parsed but not supported
+    InvalidHttpVersion, 	// HTTP version is not supported (only HTTP/1.0 and HTTP/1.1 are supported)
+    InvalidUriSyntax, 	// URI syntax is invalid
+    UriTooLong, 		// URI is too long (max 2048 characters)
+    MissingHostHeader, 		// HTTP/1.1 Host required (required for HTTP/1.1)
+    InvalidHeaderSyntax, // Header syntax is invalid
+    HeaderSectionTooLarge, 	// Header section is too large (max 256kb)
+    UnsupportedTransferEncoding, // Transfer encoding is not supported
+    ConflictingLengthFraming,    // TE + CL conflict
+    InvalidContentLength,	// Content length is invalid
+    BodyTooLarge, 			// Body is too large
+    InvalidChunkedFraming, // Chunked framing is invalid
+    InternalParserFailure // Internal parser failure
+};
+
+// CONSIDER MOVING TO ITS OWN header file
+enum class ReplyStatus
+{
+    OK = 200, // request succeeded, server is retuning requested representation as response
+	Created = 201, // request succeeded and a new resource was created as a result (201 created)
+    MovedPermanently = 301, // Target resource now has a new permanent URI. Cleints should use the new uri (redirect)
+    BadRequest = 400, // server cannot or will not process request due to client error (malformed syntax, invalid frmaing, deceptive routing, etc.)
+	Forbidden = 403, // server refuses to respond to the request (forbidden resource)
+	NotFound = 404, // server cannot find the requested resource (404 not found)
+	MethodNotAllowed = 405, // server does not support the request method (405 method not allowed)
+    RequestTimeout = 408, // server did not receive a complete request message in time it was prepared to wait
+    ContentTooLarge = 413, // request content is larger thant he serve ris willing or able to process
+    UriTooLong = 414, // target uri is longer than the server is willing to interpret
+    RequestHeaderFieldsTooLarge = 431, // The server refuses to process the request because header fields are too large (single header or aggregate headers).
+    InternalServerError = 500, // server encountered unexpected condiiton that prevented it from fulfilling the request
+    NotImplemented = 501, // server does not support funcitonality required to fulfill the request (unimplemented method)
+	Unset = 0 // Unset
+};
+
 // HTTP parsing constants
 namespace HTTP_CONSTANT {
 	inline constexpr size_t CRLF_LENGTH = 2;
@@ -31,6 +70,8 @@ namespace HTTP_CONSTANT {
 	inline constexpr size_t MAX_BODY_SIZE = 100 * 1024 * 1024;
 	// Max size of chunks must be 8MB or less
 	inline constexpr size_t MAX_CHUNK_SIZE = 8 * 1024 * 1024;
+	// Max buffered chunked-body bytes waiting for completion
+	inline constexpr size_t MAX_CHUNKED_BUFFER_SIZE = 16 * 1024 * 1024;
 }
 
 std::string method_tostring(HttpMethod method);
@@ -44,11 +85,13 @@ void handle_method(HttpMethod method);
 class HttpParseException : public std::exception
 {
 	private:
-		int m_status;
+		ParseError m_error;
+		ReplyStatus m_status;
 		std::string m_msg;
 	public:
-		HttpParseException(int status, const std::string& msg);
-		int statusCode() const noexcept;
+		HttpParseException(const ParseError error, const ReplyStatus status, const std::string& msg);
+		ParseError getError() const noexcept;
+		ReplyStatus getStatus() const noexcept;
 		const char* what() const noexcept override;
 };
 
@@ -77,43 +120,40 @@ class RequestParser
 		void parseBody();
 		void parseContentLengthBody();
 		void parseChunkedBody();
-		void setErrorAndReturn(const char* reason = "", const std::string& line = "");
 		bool extractLineToken(std::string& source, std::string& out_token);
-		bool extractMethod(std::string& request_line);
-		bool extractTarget(std::string& request_line);
-		bool extractVersion(const std::string& version_token);
+		void extractMethod(std::string& request_line);
+		void extractTarget(std::string& request_line);
+		void extractVersion(const std::string& version_token);
 		bool extractHeadersSection(std::string& out_headers_section);
-		bool validateCRLF(const std::string &headers);
-        bool parseHeaderLine(const std::string& header_line);
-        bool processHeaderLines(const std::string& headers_section);
-		bool validateRequiredHeaders();
-		bool fail(const char* reason = "", const std::string& line = "");
-		bool parseBodyMetadata();
+		void validateCRLF(const std::string &headers);
+        void parseHeaderLine(const std::string& header_line);
+        void processHeaderLines(const std::string& headers_section);
+		void validateRequiredHeaders();
+		void parseBodyMetadata();
 		bool validateHTTPVersion(const std::string& version);
-		bool validateContentLength(const std::string& value, size_t& out_length);
-		bool parseChunkSize(const std::string& hex_value, size_t& out_size);
-		bool extractChunkData(const std::string& chunked_section, size_t& pos, size_t chunk_size);
+		void validateContentLength(const std::string& value, size_t& out_length);
+		void parseChunkSize(const std::string& hex_value, size_t& out_size);
 		std::string extractKey(const std::string& header_token);
         std::string extractValue(const std::string& header_token);
         std::string trimValue(const std::string& value);
 
 		// implementing URI parsing below
-		bool parseURI(void);
-		bool pathTooLong(const std::string& working_uri);
-		bool validateLeadingSlash(const std::string& working_uri);
-		bool errorOnScheme(const std::string& working_uri);
-		bool errorOnAuthority(const std::string& working_uri);
-		bool errorOnEmpty(const std::string& working_uri);
-		bool errorOnUserInfo(const std::string& working_uri);
-		bool storeQuery(std::string& working_uri);
+		void parseURI(void);
+		void pathTooLong(const std::string& working_uri);
+		void validateLeadingSlash(const std::string& working_uri);
+		void errorOnScheme(const std::string& working_uri);
+		void errorOnAuthority(const std::string& working_uri);
+		void errorOnEmpty(const std::string& working_uri);
+		void errorOnUserInfo(const std::string& working_uri);
+		void storeQuery(std::string& working_uri);
 		void trimFragment(std::string& working_uri);
 
 		// normalize funcs
-		bool normalizeURI(std::string& parsed_uri);
-		bool rejectNullBytes(std::string& parsed_uri);
-		bool validateHexBytes(std::string& parsed_uri);
+		void normalizeURI(std::string& parsed_uri);
+		void rejectNullBytes(std::string& parsed_uri);
+		void validateHexBytes(std::string& parsed_uri);
 		char decodeByte(char c1, char c2);
-		bool normalizePath(std::string& parsed_uri);
+		void normalizePath(std::string& parsed_uri);
 };
 
 #endif
