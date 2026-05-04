@@ -115,7 +115,7 @@ std::string read_cgi(int fd)
 	return cgi_response;
 }
 
-bool new_cgi(std::string file_location, Server &config, Request &request, std::vector<t_cgi> &cgi, int fd, char **envp)
+bool new_cgi(std::string file_location, Server *config, Request &request, std::vector<t_cgi> &cgi, int fd, char **envp)
 {
 	if (find_cgi(cgi, fd) == nullptr)
 	{
@@ -123,9 +123,9 @@ bool new_cgi(std::string file_location, Server &config, Request &request, std::v
 		size_t i = file_location.find_last_of('.');
 		if (i != file_location.npos)
 			ext = file_location.substr(file_location.find_last_of('.'));
-		if (config.cgiconfigs.contains(ext))
+		if (config->cgiconfigs.contains(ext))
 		{
-			cgi.push_back(start_Cgi(config, config.cgiconfigs.find(ext)->second, request.getPath(), file_location, request, fd, envp));
+			cgi.push_back(start_Cgi(*config, config->cgiconfigs.find(ext)->second, request.getPath(), file_location, request, fd, envp));
 			return true;
 		}
 	}

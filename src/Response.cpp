@@ -11,6 +11,9 @@
 Response::Response(const int fd, ReplyStatus status)
 	: config(NULL), envp(NULL), fd(fd), request(NULL), route(NULL), status(status), method(HttpMethod::NONE), Date(get_timestr()) {};
 
+Response::Response(const Server *config, const Route_rule *route, const Request *request, const int fd, char **envp, const int cgi_fd)
+	: cgi_fd(cgi_fd), config(config), envp(envp), fd(fd), request(request), route(route), method(request->getMethod()), Date(get_timestr()) {prevcgi = true;};
+
 Response::Response(const Server *config, const Route_rule *route, const Request *request, const int fd, char **envp)
 	: config(config), envp(envp), fd(fd), request(request), route(route), method(request->getMethod()), Date(get_timestr())
 {
@@ -23,8 +26,7 @@ Response::Response(const Server *config, const Route_rule *route, const Request 
 		std::error_code ec;
 		if (std::filesystem::exists(file_location, ec))
 		{
-			std::error_code ec;
-			if (std::filesystem::exists(file_location, ec))
+			if (ec)
 			{
 				if (ec.value() == EACCES)
 					this->status = ReplyStatus::Forbidden;
@@ -126,33 +128,8 @@ void Response::ExtractFile(std::string file_path)
 
 void Response::GET()
 {
-	std::string p_cgi;
-
-	if (is_cgi(p_cgi))
-	{
-		body = Cgi(p_cgi, file_location, envp);
-		if (body.empty())
-			this->status = ReplyStatus::InternalServerError;
-		size_t headers_end = body.find("\r\n\r\n");
-		if (headers_end != body.npos)
-		{
-			std::string	cgi_headers = body.substr(0, headers_end + 2);
-			body.erase(0, headers_end + 4);
-			while (!cgi_headers.empty())
-			{
-				size_t delimloc = cgi_headers.find("\r\n");
-				std::string new_header = cgi_headers.substr(0, delimloc);
-				if (new_header.find("Content-type:") == 0)
-					content_type = new_header.substr(14);
-				cgi_headers.erase(0, delimloc + 2);
-			}
-		}
-	}
-	else
-	{
-		ExtractFile(file_location);
-		find_contentype();
-	}
+	ExtractFile(file_location);
+	find_contentype();
 }
 
 
@@ -190,14 +167,10 @@ void Response::DELETE()
 
 bool Response::MethodAllowed()
 {
-	bool allowed = false;
 	for (HttpMethod cur : route->http_methods)
-		if (cur == method)
-		{
-			allowed = true;
-			break;
-		}
-	return allowed;
+		if (cur == this->method)
+			return true;
+	return false;
 }
 
 static std::string status_to_string(ReplyStatus status)
@@ -303,9 +276,15 @@ void Response::Reply()
 		status = ReplyStatus::InternalServerError;
 	if (request && route)
 	{
+		if (prevcgi)
+		{
+			body = read_cgi(cgi_fd);
+			if (!body.empty())
+				status = ReplyStatus::OK;
+		}
 		if (!MethodAllowed() && status == ReplyStatus::OK)
 			status = ReplyStatus::MethodNotAllowed;
-		else if (status == ReplyStatus::OK)
+		else if (status == ReplyStatus::OK && !prevcgi)
 		{
 			switch (method)
 			{
@@ -328,7 +307,6 @@ void Response::Reply()
 		SetErrorPages();
 
 	std::cout << "status: " << status_to_string(status) << std::endl;
-	headers.clear();
 	headers.emplace_back("HTTP/1.1 " + status_to_string(status));
 	headers.emplace_back("Date: " + Date);
 	if (status == ReplyStatus::MovedPermanently && route && !route->redirection.empty())
