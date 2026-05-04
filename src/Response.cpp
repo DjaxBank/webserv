@@ -234,72 +234,24 @@ static std::string status_to_string(ReplyStatus status)
 	}
 }
 
-// todo -> add reply status to string mapper here
-// added content_type to error pages (if it is empty, set it to text/html)
-// maybe we should add a default content type to the response class instead of setting it in the error pages?
-// config can be null in one response path -> so in both cases check if it is null and if so, use the default error pages
-// at the end if body is empty, set it to the default error page and set the content type to text/html (fallthrough case)
+// simplified to read custom error pages by status
+// reads the error page path from the config and extracts the file
+// if config exists but page not found, generates basic html with status code
+// if config is null we are on an error path anyways, fall through and generate
 void Response::SetErrorPages()
 {
-	if (status == ReplyStatus::Forbidden)
-	{
-		if (config && !config->Forbidden.empty())
-		{
-			ExtractFile(config->Forbidden);
-			if (content_type.empty())
-				content_type = "text/html";
-		}
-		else
-		{
-			body = R"HTML(<!DOCTYPE html>
-<html lang="en">
-<head>
-	<meta charset="UTF-8" />
-	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-	<title>403 Forbidden</title>
-</head>
-<body>
-	<main class="card">
-		<h1>403</h1>
-		<p>Sorry, you can't access this page.</p>
-	</main>
-</body>
-</html>)HTML";
-			content_type = "text/html";
-		}
-	}
-	else if (status == ReplyStatus::NotFound)
-	{
-		if (config && !config->NotFound.empty())
-		{
-			ExtractFile(config->NotFound);
-			if (content_type.empty())
-				content_type = "text/html";
-		}
-		else
-		{
-			body = R"HTML(<!DOCTYPE html>
-<html lang="en">
-	<head>
-		<meta charset="UTF-8" />
-		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-		<title>404 Not Found</title>
-	</head>
-	<body>
-		<main class="card">
-			<h1>404</h1>
-			<p>Sorry, the page you’re looking for doesn’t exist..</p>
-		</main>
-	</body>
-</html>)HTML";
-			content_type = "text/html";
-		}
-	}
-	if (body.empty())
-	{
-		content_type = "text/html";
-		body = "<!DOCTYPE html><html><body><h1>" + status_to_string(status) + "</h1></body></html>";
-	}
+    if (config)
+    {
+        const auto it = config->error_page_paths.find(static_cast<int>(status));
+        if (it != config->error_page_paths.end() && !it->second.empty())
+        {
+            ExtractFile(it->second);
+            content_type = "text/html";
+            return;
+        }
+    }
+    content_type = "text/html";
+    body = "<!DOCTYPE html><html><body><h1>" + status_to_string(status) + "</h1></body></html>";
 }
 
 // guard unset status and set to internal server error
