@@ -25,10 +25,10 @@ void Socket::setinterface()
 	if (info.second == "any")
 		addr.sin_addr.s_addr = INADDR_ANY;
 	else if (info.second == "localhost")
-		addr.sin_addr.s_addr = INADDR_LOOPBACK;
+		addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
 	else
-	{ 										// DOESN'T WORK
-		struct addrinfo req;
+	{ 
+		struct addrinfo req = {};
 		req.ai_family = addr.sin_family;
 		req.ai_socktype = SOCK_STREAM;
 		struct addrinfo *result = nullptr;
@@ -47,6 +47,7 @@ Socket::Socket(std::pair<int, std::string> sock) : info(sock)
 	const int reuse = 1;
 	setsockopt(socket_fd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse));
 	
+	addr = {};
 	addr.sin_port = htons(info.first);
 	addr.sin_family = AF_INET;
 	setinterface();
