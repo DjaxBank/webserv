@@ -13,7 +13,6 @@
 #include "cgi.hpp"
 #include "Response.hpp"
 
-// todo: we really need to add a timeout check here but i wasn't confident enough to implement it properly
 static std::optional<Request> receive_data(int clientfd, RequestParser &parser)
 {
 	char	buf[1024];

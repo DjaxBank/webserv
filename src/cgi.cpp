@@ -73,7 +73,6 @@ static t_cgi start_Cgi(Server &config, std::string cgi_program, std::string scri
 	{
 		std::vector<std::string>	args;
 		args.push_back(cgi_program);
-		std::vector<char*> execenv = setenv(envp, to_add, final_strings);
 		std::vector<char*> args_execve;
 		for (std::string &str : args)
 			args_execve.push_back(const_cast <char*>(str.c_str()));
@@ -86,7 +85,7 @@ static t_cgi start_Cgi(Server &config, std::string cgi_program, std::string scri
 			chdir(filelocation.substr(filelocation.find_last_of('/')).c_str());
 			filelocation.erase(0, filelocation.find_last_of('/'));
 		}
-		execve(cgi_program.c_str(), args_execve.data(), execenv.data());
+		execve(cgi_program.c_str(), args_execve.data(), setenv(envp, to_add, final_strings).data());
 		exit(1);
 	}
 	if (!body.empty())
@@ -135,4 +134,21 @@ t_cgi *find_cgi(std::vector<t_cgi> &cgi, const int to_find)
 			return &cur;
 	}
 	return nullptr;
+}
+void addCgiHeaders(std::vector<std::string> &headers, std::string &body)
+{
+	if (body.find("\r\n\r\n") != std::string::npos)
+	{
+		std::string headersraw = body.substr(0, body.find("\r\n\r\n"));
+		body.erase(0, body.find("\r\n\r\n") + 4);
+		while (!headersraw.empty())
+		{
+			size_t end = headersraw.find("\r\n");
+			if (end == std::string::npos)
+				end = headersraw.length();
+			std::string cur = headersraw.substr(0, end + 2);
+			headers.push_back(cur);
+			headersraw.erase(0, end);
+		}
+	}
 }
