@@ -332,6 +332,53 @@ int main()
 		"\t}\n"
 		"}\n";
 
+	const std::string route_with_upload_config =
+		"server\n"
+		"{\n"
+		"\tlisten = any:0\n"
+		"\troute\n"
+		"\t{\n"
+		"\t\troute = /\n"
+		"\t\tmethods = get post\n"
+		"\t\troot = /tmp\n"
+		"\t\tdefault = index.html\n"
+		"\t\tdirectorylisting = true\n"
+		"\t\tupload = /tmp/uploads\n"
+		"\t}\n"
+		"}\n";
+
+	const std::string custom_error_pages_config =
+		"server\n"
+		"{\n"
+		"\tlisten = any:0\n"
+		"\t403 = /errors/forbidden.html\n"
+		"\t404 = /errors/notfound.html\n"
+		"\t500 = /errors/server.html\n"
+		"\troute\n"
+		"\t{\n"
+		"\t\troute = /\n"
+		"\t\tmethods = get\n"
+		"\t\troot = /tmp\n"
+		"\t\tdefault = index.html\n"
+		"\t\tdirectorylisting = false\n"
+		"\t}\n"
+		"}\n";
+
+	const std::string dual_listen_config =
+		"server\n"
+		"{\n"
+		"\tlisten = any:0\n"
+		"\tlisten = any:0\n"
+		"\troute\n"
+		"\t{\n"
+		"\t\troute = /\n"
+		"\t\tmethods = get\n"
+		"\t\troot = /tmp\n"
+		"\t\tdefault = index.html\n"
+		"\t\tdirectorylisting = false\n"
+		"\t}\n"
+		"}\n";
+
 	const std::vector<TestCase> tests = {
 		{"empty config", empty_config, false,
 			[](const std::vector<Server>& servers)
@@ -351,10 +398,7 @@ int main()
 				if (servers.size() != 1)
 					throw std::runtime_error("expected exactly one server");
 				if (servers[0].routes.size() != 1)
-				{
-					std::cerr << "[FAIL] " << tc.name << " -> expected parser failure but parsing succeeded\n";
-					::_exit(1);
-				}
+					throw std::runtime_error("expected exactly one route");
 				if (servers[0].routes[0].route != "/")
 					throw std::runtime_error("route mismatch");
 				if (servers[0].routes[0].default_dir_file != "index.html")
@@ -383,16 +427,7 @@ int main()
 				std::ofstream fake((temp_dir / "fakecgi").c_str());
 				fake << "#!/bin/sh\nexit 0\n";
 			}},
-		{"unsupported methods token", unsupported_methods_config, false,
-			[](const std::vector<Server>& servers)
-			{
-				if (servers.size() != 1)
-					throw std::runtime_error("expected one server");
-				if (servers[0].routes.size() != 1)
-					throw std::runtime_error("expected one route");
-				if (!servers[0].routes[0].http_methods.empty())
-					throw std::runtime_error("expected parser to ignore unsupported methods and leave the list empty");
-			}, nullptr},
+		{"invalid methods token rejects parse", unsupported_methods_config, true, nullptr, nullptr},
 		{"cgi lookup via PATH", cgi_config, false,
 			[](const std::vector<Server>& servers)
 			{
@@ -409,6 +444,42 @@ int main()
 				std::ofstream fake((temp_dir / "fakecgi").c_str());
 				fake << "#!/bin/sh\nexit 0\n";
 			}},
+		{"route upload_dir stored", route_with_upload_config, false,
+			[](const std::vector<Server>& servers)
+			{
+				if (servers.size() != 1 || servers[0].routes.size() != 1)
+					throw std::runtime_error("expected one server one route");
+				if (servers[0].routes[0].upload_dir != "/tmp/uploads")
+					throw std::runtime_error("upload_dir mismatch");
+			}, nullptr},
+		{"custom error pages map", custom_error_pages_config, false,
+			[](const std::vector<Server>& servers)
+			{
+				if (servers.size() != 1)
+					throw std::runtime_error("expected one server");
+				const auto &paths = servers[0].error_page_paths;
+				auto i403 = paths.find(403);
+				auto i404 = paths.find(404);
+				auto i500 = paths.find(500);
+				if (i403 == paths.end() || i403->second != "/errors/forbidden.html")
+					throw std::runtime_error("error_page_paths 403 mismatch");
+				if (i404 == paths.end() || i404->second != "/errors/notfound.html")
+					throw std::runtime_error("error_page_paths 404 mismatch");
+				if (i500 == paths.end() || i500->second != "/errors/server.html")
+					throw std::runtime_error("error_page_paths 500 mismatch");
+			}, nullptr},
+		{"dual listen specs first wins sock", dual_listen_config, false,
+			[](const std::vector<Server>& servers)
+			{
+				if (servers.size() != 1)
+					throw std::runtime_error("expected one server");
+				if (servers[0].listen_specs.size() != 2)
+					throw std::runtime_error("expected two listen_specs");
+				if (servers[0].sock.info.first != servers[0].listen_specs[0].first)
+					throw std::runtime_error("sock port should match first listen");
+				if (servers[0].sock.info.second != servers[0].listen_specs[0].second)
+					throw std::runtime_error("sock host should match first listen");
+			}, nullptr},
 		{"missing CGI target", missing_cgi_target_config, true, nullptr, nullptr},
 		{"invalid listen syntax", invalid_listen_config, true, nullptr, nullptr},
 		{"missing server opening brace", missing_server_open_brace_config, true, nullptr, nullptr},
