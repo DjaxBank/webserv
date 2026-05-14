@@ -27,7 +27,7 @@ void Socket::setinterface()
 	else if (info.second == "localhost")
 		addr.sin_addr.s_addr = INADDR_LOOPBACK;
 	else
-	{ 										// DOESN'T WORK
+	{ 
 		struct addrinfo req;
 		req.ai_family = addr.sin_family;
 		req.ai_socktype = SOCK_STREAM;
