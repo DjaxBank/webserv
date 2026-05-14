@@ -20,31 +20,25 @@ void check_timeout(std::vector<t_cgi> &cgi)
 	}
 }
 
-static char **setenv(char **envp, std::vector<std::pair<std::string, std::string> *> &to_add, std::vector<std::string> &final_strings)
+static std::vector<char *>setenv(char **envp, std::vector<std::pair<std::string, std::string> *> &to_add, std::vector<std::string> &final_strings)
 {
-	size_t		i = 0;
-	
+	std::vector<char *> execenv;
 	for (std::pair<std::string, std::string> *cur : to_add)
 	{
 		if (!cur->second.empty())
 		final_strings.push_back(cur->first + '=' + cur->second);
 	}
 	final_strings.push_back("REDIRECT_STATUS=200");
-	while (envp[i] != NULL)
-		i++;
-	char **execenv = new char *[i + final_strings.size() + 1];
-	i = 0;
+
+	size_t i = 0;
 	while (envp[i] != NULL)
 	{
-		execenv[i] = envp[i];
+		execenv.push_back(envp[i]);
 		i++;
 	}
 	for (std::string &cur : final_strings)
-	{
-			execenv[i] = const_cast<char *>(cur.c_str());
-			i++;
-	}
-	execenv[i] = nullptr;
+			execenv.push_back(const_cast<char *>(cur.c_str()));
+	execenv.push_back(nullptr);
 	return execenv;
 }
 
@@ -74,24 +68,25 @@ static t_cgi start_Cgi(Server &config, std::string cgi_program, std::string scri
 		close(bodypipe[1]);
 	}
 	pipe(pipes);
-	std::vector<std::string>	args;
-	args.push_back(cgi_program);
-	args.push_back(filelocation);
-	size_t size = args.size();
 	pid_t pid = fork();
 	if (pid == 0)
 	{
-		char **execenv = setenv(envp, to_add, final_strings);
-		char **args_execve = new char *[size + 1];
-		for (size_t i = 0; i < size; i++)
-			args_execve[i] = const_cast <char*>(args[i].c_str());
-		args_execve[size] = nullptr;
+		std::vector<std::string>	args;
+		args.push_back(cgi_program);
+		std::vector<char*> execenv = setenv(envp, to_add, final_strings);
+		std::vector<char*> args_execve;
+		for (std::string &str : args)
+			args_execve.push_back(const_cast <char*>(str.c_str()));
+		args_execve.push_back(nullptr);
 		dup2(pipes[1], STDOUT_FILENO);
 		if (!body.empty())
 			dup2(bodypipe[0], STDIN_FILENO);
-		execve(cgi_program.c_str(), args_execve, execenv);
-		delete [] execenv;
-		delete [] args_execve;
+		if (filelocation.find_last_of('/') != filelocation.npos)
+		{
+			chdir(filelocation.substr(filelocation.find_last_of('/')).c_str());
+			filelocation.erase(0, filelocation.find_last_of('/'));
+		}
+		execve(cgi_program.c_str(), args_execve.data(), execenv.data());
 		exit(1);
 	}
 	if (!body.empty())
