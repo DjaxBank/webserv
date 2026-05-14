@@ -12,7 +12,7 @@ Response::Response(const int fd, ReplyStatus status)
 	: config(NULL), envp(NULL), fd(fd), request(NULL), route(NULL), status(status), method(HttpMethod::NONE), Date(get_timestr()) {};
 
 Response::Response(const Server *config, const Route_rule *route, const Request *request, const int fd, char **envp, const int cgi_fd)
-	: cgi_fd(cgi_fd), config(config), envp(envp), fd(fd), request(request), route(route), method(request->getMethod()), Date(get_timestr()) {prevcgi = true;};
+	: cgi_fd(cgi_fd),  config(config), envp(envp), fd(fd), request(request), route(route), status(ReplyStatus::Unset), method(request->getMethod()), Date(get_timestr()) {prevcgi = true;};
 
 Response::Response(const Server *config, const Route_rule *route, const Request *request, const int fd, char **envp)
 	: config(config), envp(envp), fd(fd), request(request), route(route), method(request->getMethod()), Date(get_timestr())
@@ -279,6 +279,7 @@ void Response::Reply()
 		if (prevcgi)
 		{
 			body = read_cgi(cgi_fd);
+			addCgiHeaders(headers, body);
 			if (!body.empty())
 				status = ReplyStatus::OK;
 		}
@@ -305,9 +306,8 @@ void Response::Reply()
 	}
 	if (status != ReplyStatus::OK && status != ReplyStatus::Created && status != ReplyStatus::MovedPermanently)
 		SetErrorPages();
-
 	std::cout << "status: " << status_to_string(status) << std::endl;
-	headers.emplace_back("HTTP/1.1 " + status_to_string(status));
+	headers.emplace(headers.begin(), "HTTP/1.1 " + status_to_string(status));
 	headers.emplace_back("Date: " + Date);
 	if (status == ReplyStatus::MovedPermanently && route && !route->redirection.empty())
 		headers.emplace_back("Location: " + route->redirection);
