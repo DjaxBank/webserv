@@ -148,6 +148,7 @@ void handle_client(std::vector<Server> &servers, fd_set *monitored, std::vector<
 	static std::map<int, Request>		saved_requests;
 	static std::map<int, Server>		saved_configs;
 	static std::map<int, Route_rule>	saved_routes;
+	static std::map<std::string, int>	cookies;
 
 	for (int fd : active_fds)
 	{

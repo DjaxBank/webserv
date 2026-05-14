@@ -34,6 +34,7 @@ class Response
 		Response(const int fd, ReplyStatus status);
 		Response(const Server *config, const Route_rule *route, const Request *request, const int fd, char **envp);
 		Response(const Server *config, const Route_rule *route, const Request *request, const int fd, char **envp, const int cgi_fd);
+		void handleCounter();
 		void	Reply();
 		~Response();
 };

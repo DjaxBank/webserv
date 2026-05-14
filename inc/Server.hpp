@@ -41,7 +41,6 @@ class Server
 		std::map<int, std::string>							error_page_paths;
 		int													MaxRequestBodySize;
 		std::vector<Route_rule>								routes;
-		// djax-todo: main/handle_client currently we only listen on one port, we need to listen on all ports
 		std::vector<std::pair<int, std::string>>			listen_specs;
 
 		Server(std::ifstream &fstream, char **envp);

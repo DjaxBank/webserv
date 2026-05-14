@@ -194,6 +194,39 @@ static std::string status_to_string(ReplyStatus status)
 	}
 }
 
+std::stringstream generateSession()
+{
+	unsigned char buff[16];
+
+
+	std::ifstream urandom("/dev/urandom", std::ios::binary);
+	std::stringstream hexstring;
+
+	urandom.read(reinterpret_cast<char *>(buff), sizeof(buff));
+	for (int i = 0; i < 16; i++)
+	{
+		hexstring << std::hex << int(buff[i]);
+	}
+	return hexstring;
+}
+
+// void Response::handleCounter()
+// {
+// 	int counter = 0;
+
+// 	if (request->getHeaders().contains("Cookie: "))
+// 	{
+		
+// 	}
+// 	else
+// 	{
+// 		std::string hexstring = generateSession().str();
+// 		headers.emplace_back("Set-Cookie: " + hexstring);
+// 		cookie.first = hexstring;
+// 		cookie.second = 0;
+// 	}
+// }
+
 // simplified to read custom error pages by status
 // reads the error page path from the config and extracts the file
 // if config exists but page not found, generates basic html with status code
