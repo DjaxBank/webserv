@@ -146,7 +146,14 @@ void addCgiHeaders(std::vector<std::string> &headers, std::string &body)
 			size_t end = headersraw.find("\r\n");
 			if (end == std::string::npos)
 				end = headersraw.length();
+			else
+				end += 2;
 			std::string cur = headersraw.substr(0, end + 2);
+			if (cur.find("Content-Length") != std::string::npos)
+			{
+				size_t max = std::atoi(cur.c_str() + cur.find("Content-Length") + 15);
+				body = body.substr(0, max);
+			}
 			headers.push_back(cur);
 			headersraw.erase(0, end);
 		}
