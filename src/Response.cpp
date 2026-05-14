@@ -258,7 +258,7 @@ void Response::Reply()
 	}
 	if (status != ReplyStatus::OK && status != ReplyStatus::Created && status != ReplyStatus::MovedPermanently)
 		SetErrorPages();
-	std::cout << "status: " << status_to_string(status) << std::endl;
+	std::cout << this->config->sock.client_fds.find(fd)->second << ": ""status: " << status_to_string(status) << std::endl;
 	headers.emplace(headers.begin(), "HTTP/1.1 " + status_to_string(status));
 	headers.emplace_back("Date: " + Date);
 	if (status == ReplyStatus::MovedPermanently && route && !route->redirection.empty())

@@ -332,7 +332,6 @@ Server::Server(std::ifstream &fstream, char **envp) : envp(envp)
 	bool in_server_block = false;
 
 	loadServerConfig(fstream, linec, in_server_block);
-	// djax-todo: i think the subject says we need to listen on all ports, not just the first one
 	if (!listen_specs.empty())
 		sock = Socket(listen_specs.front());
 }
