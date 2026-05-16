@@ -8,8 +8,8 @@
 #include "cgi.hpp"
 
 // if we are on an error path, we need to set things null to prevent crashes
-Response::Response(const int fd, ReplyStatus status)
-	: config(NULL), envp(NULL), fd(fd), request(NULL), route(NULL), status(status), method(HttpMethod::NONE), Date(get_timestr()) {};
+Response::Response(const int fd, const Server *config, ReplyStatus status)
+	: config(config), envp(NULL), fd(fd), request(NULL), route(NULL), status(status), method(HttpMethod::NONE), Date(get_timestr()) {};
 
 Response::Response(const Server *config, const Route_rule *route, const Request *request, const int fd, char **envp, const int cgi_fd)
 	: cgi_fd(cgi_fd),  config(config), envp(envp), fd(fd), request(request), route(route), status(ReplyStatus::Unset), method(request->getMethod()), Date(get_timestr()) {prevcgi = true;};
