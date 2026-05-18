@@ -1,6 +1,6 @@
 <?php
 header('Content-Type: text/html; charset=UTF-8');
-header('Content-Length: 20');
+// header('Content-Length: 20');
 
 function dump_value($value)
 {

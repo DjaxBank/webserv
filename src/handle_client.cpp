@@ -126,7 +126,7 @@ void execute_cgi(int fd, std::map<int, Request> &saved_requests, std::map<int, S
 		}
 		else
 		{
-			Response timeoutresponse(fd, &saved_config->second, ReplyStatus::RequestTimeout);  
+			Response timeoutresponse(fd, &saved_config->second, &saved_request->second, ReplyStatus::RequestTimeout);  
 			timeoutresponse.Reply();
 		}
 		for (auto it = cgi.begin() ; it != cgi.end() ; it++)
@@ -159,7 +159,6 @@ void handle_client(std::vector<Server> &servers, fd_set *monitored, std::vector<
 		int 					cgi_fd;
 		bool					is_cgi = find_cgi(cgi, fd) != nullptr;
 	
-		std::cout << "socket " << std::to_string(fd) << ' ';
 		if (is_cgi)
 		{
 			cgi_fd = fd;
@@ -197,7 +196,7 @@ void handle_client(std::vector<Server> &servers, fd_set *monitored, std::vector<
 			std::cerr << e.what() << '\n';
 			try
 			{
-				Response error_response(fd, config, e.getStatus());
+				Response error_response(fd, config, &parsed_request.value(), e.getStatus());
 				error_response.Reply();
 			}
 			catch(const std::exception& error)
@@ -210,7 +209,7 @@ void handle_client(std::vector<Server> &servers, fd_set *monitored, std::vector<
 			std::cerr << "Error handling request: " << e.what() << '\n';
 			try
 			{
-				Response error_response(fd, config, ReplyStatus::InternalServerError);
+				Response error_response(fd, config, &parsed_request.value(), ReplyStatus::InternalServerError);
 				error_response.Reply();
 			}
 			catch (const std::exception& error)
