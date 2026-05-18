@@ -8,8 +8,8 @@
 #include "cgi.hpp"
 
 // if we are on an error path, we need to set things null to prevent crashes
-Response::Response(const int fd, const Server *config, ReplyStatus status)
-	: config(config), envp(NULL), fd(fd), request(NULL), route(NULL), status(status), method(HttpMethod::NONE), Date(get_timestr()) {};
+Response::Response(const int fd, const Server *config, const Request *request, ReplyStatus status)
+	: config(config), envp(NULL), fd(fd), request(request), route(NULL), status(status), method(HttpMethod::NONE), Date(get_timestr()) {};
 
 Response::Response(const Server *config, const Route_rule *route, const Request *request, const int fd, char **envp, const int cgi_fd)
 	: cgi_fd(cgi_fd),  config(config), envp(envp), fd(fd), request(request), route(route), status(ReplyStatus::Unset), method(request->getMethod()), Date(get_timestr()) {prevcgi = true;};
@@ -291,7 +291,7 @@ void Response::Reply()
 	}
 	if (status != ReplyStatus::OK && status != ReplyStatus::Created && status != ReplyStatus::MovedPermanently)
 		SetErrorPages();
-	std::cout << this->config->sock.client_fds.find(fd)->second << ": ""status: " << status_to_string(status) << std::endl;
+	std::cout << "socket "<< fd <<  ": " << request->getPath() << ' '<< status_to_string(status) << std::endl;
 	headers.emplace(headers.begin(), "HTTP/1.1 " + status_to_string(status));
 	headers.emplace_back("Date: " + Date);
 	if (status == ReplyStatus::MovedPermanently && route && !route->redirection.empty())
