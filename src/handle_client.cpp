@@ -114,19 +114,19 @@ static std::vector<int> setup_active(std::vector<Server> &servers, fd_set *monit
 	return active_fds;
 }
 
-void execute_cgi(int fd, std::map<int, Request> &saved_requests, std::map<int, Server> &saved_configs, std::map<int, Route_rule> &saved_routes, std::vector<t_cgi> &cgi, char **envp, int cgi_fd)
+void execute_cgi(int fd, std::map<int, Request> &saved_requests, std::map<int, Server> &saved_configs, std::map<int, Route_rule> &saved_routes, std::vector<t_cgi> &cgi, char **envp, int cgi_fd, std::map<std::string, int> &cookies)
 {
 		std::map<int, Request>::iterator	saved_request	= saved_requests.find(fd);
 		std::map<int, Server>::iterator		saved_config	= saved_configs.find(fd);
 		std::map<int, Route_rule>::iterator	saved_route		= saved_routes.find(fd);
 		if (find_cgi(cgi, fd)->active)
 		{
-			Response	response(&saved_config->second, &saved_route->second, &saved_request->second, fd, envp, cgi_fd);
+			Response	response(&saved_config->second, &saved_route->second, &saved_request->second, fd, envp, cgi_fd, cookies);
 			response.Reply();
 		}
 		else
 		{
-			Response timeoutresponse(fd, &saved_config->second, &saved_request->second, ReplyStatus::RequestTimeout);  
+			Response timeoutresponse(fd, &saved_config->second, &saved_request->second, ReplyStatus::RequestTimeout, cookies);  
 			timeoutresponse.Reply();
 		}
 		for (auto it = cgi.begin() ; it != cgi.end() ; it++)
@@ -184,19 +184,19 @@ void handle_client(std::vector<Server> &servers, fd_set *monitored, std::vector<
 				}
 				else
 				{
-					Response response(config, route, &parsed_request.value(), fd, envp);
+					Response response(config, route, &parsed_request.value(), fd, envp, cookies);
 					response.Reply();
 				}
 			}
 			else if (is_cgi)
-				execute_cgi(fd, saved_requests, saved_configs, saved_routes, cgi, envp, cgi_fd);
+			execute_cgi(fd, saved_requests, saved_configs, saved_routes, cgi, envp, cgi_fd, cookies);
 		}
 		catch(const HttpParseException& e)
 		{
 			std::cerr << e.what() << '\n';
 			try
 			{
-				Response error_response(fd, config, &parsed_request.value(), e.getStatus());
+				Response error_response(fd, config, &parsed_request.value(), e.getStatus(), cookies);
 				error_response.Reply();
 			}
 			catch(const std::exception& error)
@@ -209,7 +209,7 @@ void handle_client(std::vector<Server> &servers, fd_set *monitored, std::vector<
 			std::cerr << "Error handling request: " << e.what() << '\n';
 			try
 			{
-				Response error_response(fd, config, &parsed_request.value(), ReplyStatus::InternalServerError);
+				Response error_response(fd, config, &parsed_request.value(), ReplyStatus::InternalServerError, cookies);
 				error_response.Reply();
 			}
 			catch (const std::exception& error)

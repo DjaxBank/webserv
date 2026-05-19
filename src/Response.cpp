@@ -6,16 +6,18 @@
 #include <sys/socket.h>
 #include <filesystem>
 #include "cgi.hpp"
+#include <map>
+#include <sstream>
 
 // if we are on an error path, we need to set things null to prevent crashes
-Response::Response(const int fd, const Server *config, const Request *request, ReplyStatus status)
-	: config(config), envp(NULL), fd(fd), request(request), route(NULL), status(status), method(HttpMethod::NONE), Date(get_timestr()) {};
+Response::Response(const int fd, const Server *config, const Request *request, ReplyStatus status, std::map<std::string, int> &cookies)
+	: config(config), envp(NULL), fd(fd), request(request), route(NULL), status(status), method(HttpMethod::NONE), Date(get_timestr()), cookies(cookies) {};
 
-Response::Response(const Server *config, const Route_rule *route, const Request *request, const int fd, char **envp, const int cgi_fd)
-	: cgi_fd(cgi_fd),  config(config), envp(envp), fd(fd), request(request), route(route), status(ReplyStatus::Unset), method(request->getMethod()), Date(get_timestr()) {prevcgi = true;};
+Response::Response(const Server *config, const Route_rule *route, const Request *request, const int fd, char **envp, const int cgi_fd, std::map<std::string, int> &cookies)
+	: cgi_fd(cgi_fd),  config(config), envp(envp), fd(fd), request(request), route(route), status(ReplyStatus::Unset), method(request->getMethod()), Date(get_timestr()), cookies(cookies) {prevcgi = true;};
 
-Response::Response(const Server *config, const Route_rule *route, const Request *request, const int fd, char **envp)
-	: config(config), envp(envp), fd(fd), request(request), route(route), method(request->getMethod()), Date(get_timestr())
+Response::Response(const Server *config, const Route_rule *route, const Request *request, const int fd, char **envp, std::map<std::string, int> &cookies)
+	: config(config), envp(envp), fd(fd), request(request), route(route), method(request->getMethod()), Date(get_timestr()), cookies(cookies)
 {
 	this->status = ReplyStatus::Unset;
 	if (!route->redirection.empty())
@@ -210,22 +212,24 @@ std::stringstream generateSession()
 	return hexstring;
 }
 
-// void Response::handleCounter()
-// {
-// 	int counter = 0;
 
-// 	if (request->getHeaders().contains("Cookie: "))
-// 	{
+
+
+void Response::handleCounter()
+{
+    std::string cookie_value;
+    const std::map<std::string, std::string> &req_headers = request->getHeaders();
+    auto cookie_it = req_headers.find("cookie");
+
+    if (cookie_it != req_headers.end())
+        cookie_value = cookie_it->second;
+    else
+        cookie_value = generateSession().str();
 		
-// 	}
-// 	else
-// 	{
-// 		std::string hexstring = generateSession().str();
-// 		headers.emplace_back("Set-Cookie: " + hexstring);
-// 		cookie.first = hexstring;
-// 		cookie.second = 0;
-// 	}
-// }
+    this->cookies[cookie_value]++;
+    headers.emplace_back("Set-Cookie: " + cookie_value);
+    body += "<br><p>Congradulations! You fucked up " + std::to_string(this->cookies[cookie_value]) + " times</p>";
+}
 
 // simplified to read custom error pages by status
 // reads the error page path from the config and extracts the file
@@ -240,11 +244,13 @@ void Response::SetErrorPages()
         {
             ExtractFile(it->second);
             content_type = "text/html";
+            handleCounter();
             return;
         }
     }
     content_type = "text/html";
     body = "<!DOCTYPE html><html><body><h1>" + status_to_string(status) + "</h1></body></html>";
+    handleCounter();
 }
 
 // guard unset status and set to internal server error

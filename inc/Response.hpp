@@ -1,5 +1,7 @@
 #include "Request.hpp"
 #include "Server.hpp"
+#include <map>
+#include <string>
 
 class Response
 {
@@ -30,10 +32,11 @@ class Response
 		void				SetErrorPages();
 		void				extractcgiheaders();
 		bool				is_cgi();
+		std::map<std::string, int>&		cookies;
 	public:
-		Response(const int fd, const Server *config, const Request *Request, ReplyStatus status);
-		Response(const Server *config, const Route_rule *route, const Request *request, const int fd, char **envp);
-		Response(const Server *config, const Route_rule *route, const Request *request, const int fd, char **envp, const int cgi_fd);
+		Response(const int fd, const Server *config, const Request *Request, ReplyStatus status, std::map<std::string, int> &cookies);
+		Response(const Server *config, const Route_rule *route, const Request *request, const int fd, char **envp, std::map<std::string, int> &cookies);
+		Response(const Server *config, const Route_rule *route, const Request *request, const int fd, char **envp, const int cgi_fd, std::map<std::string, int> &cookies);
 		void handleCounter();
 		void	Reply();
 		~Response();
