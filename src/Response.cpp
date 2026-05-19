@@ -228,7 +228,7 @@ void Response::handleCounter()
 		
     this->cookies[cookie_value]++;
     headers.emplace_back("Set-Cookie: " + cookie_value);
-    body += "<br><p>Congradulations! You fucked up " + std::to_string(this->cookies[cookie_value]) + " times</p>";
+    body += "<br><p>Congratulations! You fucked up " + std::to_string(this->cookies[cookie_value]) + " times</p>";
 }
 
 // simplified to read custom error pages by status
