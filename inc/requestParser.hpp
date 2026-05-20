@@ -18,43 +18,41 @@ enum class ParserState
 enum class ParseError
 {
     None,
-    Incomplete,                  // Need more bytes (not an error by itself)
-    InvalidRequestLine,          // Bad method/target/version syntax
-    UnsupportedMethod,           // Method token parsed but not supported
-    InvalidHttpVersion, 	// HTTP version is not supported (only HTTP/1.0 and HTTP/1.1 are supported)
-    InvalidUriSyntax, 	// URI syntax is invalid
-    UriTooLong, 		// URI is too long (max 2048 characters)
-    MissingHostHeader, 		// HTTP/1.1 Host required (required for HTTP/1.1)
-    InvalidHeaderSyntax, // Header syntax is invalid
-    HeaderSectionTooLarge, 	// Header section is too large (max 256kb)
-    UnsupportedTransferEncoding, // Transfer encoding is not supported
-    ConflictingLengthFraming,    // TE + CL conflict
-    InvalidContentLength,	// Content length is invalid
-    BodyTooLarge, 			// Body is too large
-    InvalidChunkedFraming, // Chunked framing is invalid
-    InternalParserFailure // Internal parser failure
+    Incomplete,
+    InvalidRequestLine,
+    UnsupportedMethod,
+    InvalidHttpVersion,
+	InvalidUriSyntax,
+	UriTooLong,
+	MissingHostHeader,
+    InvalidHeaderSyntax,
+	HeaderSectionTooLarge,
+    UnsupportedTransferEncoding,
+    ConflictingLengthFraming,
+	InvalidContentLength,
+	BodyTooLarge,
+    InvalidChunkedFraming,
+    InternalParserFailure
 };
 
-// CONSIDER MOVING TO ITS OWN header file
 enum class ReplyStatus
 {
-    OK = 200, // request succeeded, server is retuning requested representation as response
-	Created = 201, // request succeeded and a new resource was created as a result (201 created)
-    MovedPermanently = 301, // Target resource now has a new permanent URI. Cleints should use the new uri (redirect)
-    BadRequest = 400, // server cannot or will not process request due to client error (malformed syntax, invalid frmaing, deceptive routing, etc.)
-	Forbidden = 403, // server refuses to respond to the request (forbidden resource)
-	NotFound = 404, // server cannot find the requested resource (404 not found)
-	MethodNotAllowed = 405, // server does not support the request method (405 method not allowed)
-    RequestTimeout = 408, // server did not receive a complete request message in time it was prepared to wait
-    ContentTooLarge = 413, // request content is larger thant he serve ris willing or able to process
-    UriTooLong = 414, // target uri is longer than the server is willing to interpret
-    RequestHeaderFieldsTooLarge = 431, // The server refuses to process the request because header fields are too large (single header or aggregate headers).
-    InternalServerError = 500, // server encountered unexpected condiiton that prevented it from fulfilling the request
-    NotImplemented = 501, // server does not support funcitonality required to fulfill the request (unimplemented method)
-	Unset = 0 // Unset
+    OK = 200,
+	Created = 201,
+    MovedPermanently = 301,
+    BadRequest = 400,
+	Forbidden = 403,
+	NotFound = 404,
+	MethodNotAllowed = 405,
+    RequestTimeout = 408,
+    ContentTooLarge = 413,
+    UriTooLong = 414,
+    RequestHeaderFieldsTooLarge = 431,
+    InternalServerError = 500,
+    NotImplemented = 501,
+	Unset = 0
 };
 
-// HTTP parsing constants
 namespace HTTP_CONSTANT {
 	inline constexpr size_t CRLF_LENGTH = 2;
 	inline constexpr char CRLF[] = "\r\n";
@@ -62,23 +60,16 @@ namespace HTTP_CONSTANT {
 	inline constexpr char EMPTY_LINE[] = "\r\n\r\n";
 	inline constexpr char SCHEME_SUFFIX[] = "://";
 	inline constexpr char AUTHORITY_PREFIX[] = "//";
-	// Max size of a single header line must be less than 32kb
 	inline constexpr size_t MAX_HEADER_SIZE = 32768;
-	// Max size of headers must be less than 256kb
 	inline constexpr size_t MAX_TOTAL_HEADER_SIZE = 262144;
-	// Max size of body must be 100MB or less
 	inline constexpr size_t MAX_BODY_SIZE = 100 * 1024 * 1024;
-	// Max size of chunks must be 8MB or less
 	inline constexpr size_t MAX_CHUNK_SIZE = 8 * 1024 * 1024;
-	// Max buffered chunked-body bytes waiting for completion
 	inline constexpr size_t MAX_CHUNKED_BUFFER_SIZE = 16 * 1024 * 1024;
 }
 
 std::string method_tostring(HttpMethod method);
 HttpMethod string_tomethod(const std::string& str);
 
-// this will be put in request handling later
-// implementation example in requestParser.cpp
 void handle_method(HttpMethod method);
 
 
@@ -137,7 +128,6 @@ class RequestParser
         std::string extractValue(const std::string& header_token);
         std::string trimValue(const std::string& value);
 
-		// implementing URI parsing below
 		void parseURI(void);
 		void pathTooLong(const std::string& working_uri);
 		void validateLeadingSlash(const std::string& working_uri);
@@ -148,7 +138,6 @@ class RequestParser
 		void storeQuery(std::string& working_uri);
 		void trimFragment(std::string& working_uri);
 
-		// normalize funcs
 		void normalizeURI(std::string& parsed_uri);
 		void rejectNullBytes(std::string& parsed_uri);
 		void validateHexBytes(std::string& parsed_uri);

@@ -9,7 +9,6 @@
 #include <map>
 #include <sstream>
 
-// if we are on an error path, we need to set things null to prevent crashes
 Response::Response(const int fd, const Server *config, const Request *request, ReplyStatus status, std::map<std::string, int> &cookies)
 	: config(config), envp(NULL), fd(fd), request(request), route(NULL), status(status), method(HttpMethod::NONE), Date(get_timestr()), cookies(cookies) {};
 
@@ -138,7 +137,6 @@ void Response::GET()
 }
 
 
-// added != .end() guards to check if the headers are actually present and protect against crashes
 void Response::POST()
 {
 	const std::map<std::string, std::string> &headers = request->getHeaders();
@@ -234,10 +232,6 @@ void Response::handleCounter()
     body += "<br><p>Congratulations! You fucked up " + std::to_string(this->cookies[cookie_value]) + " times</p>";
 }
 
-// simplified to read custom error pages by status
-// reads the error page path from the config and extracts the file
-// if config exists but page not found, generates basic html with status code
-// if config is null we are on an error path anyways, fall through and generate
 void Response::SetErrorPages()
 {
     if (config)
@@ -256,12 +250,6 @@ void Response::SetErrorPages()
     handleCounter();
 }
 
-// guard unset status and set to internal server error
-// guard method not allowed and set to method not allowed to not overwrite more specific errors
-// method checks only happen on healthy path, otherwise it will fall through to errors or to SetErrorPages()
-// added headers.clear in case of old headers being present from previous responses
-// added guards to check if request and route are not null to prevent crashes
-// send returns ssize_t (signed int) so we need to cast the result to size_t to prevent overflows
 void Response::Reply()
 {
 	std::string	to_send;

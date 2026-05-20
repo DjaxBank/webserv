@@ -4,12 +4,10 @@
 #include <map>
 #include <cctype>
 
-// Forward declarations for functions defined in requestParserUtils.cpp
 std::string method_tostring(HttpMethod method);
 std::string version_tostring(const HttpVersion &version);
 std::string state_tostring(ParserState state);
 
-// helper function to reject bare \n or \r in request section
 static void rejectBareLFInRequestSection(const std::string& buffer, ParserState state)
 {
     for (size_t i = 0; i < buffer.size(); ++i)
@@ -49,8 +47,6 @@ ParserState RequestParser::getState() const
     return m_state;
 }
 
-/* returns a header as a string based on a key value
-    @param key will return the value based on they or "" if key not found*/
 std::string RequestParser::getHeader(const std::string& key) const
 {
     const auto& headers = m_request.getHeaders();
@@ -68,11 +64,6 @@ std::string RequestParser::getHeader(const std::string& key) const
         return "";
 }
 
-/* Accumulates incoming data and validates buffer state
- * @param data: incoming data chunk
- * @return: false if needs more data, true if complete, throw if error
- * Moves onto parsing when that section's data is ready to process
- */
 bool RequestParser::fetchData(const std::string& data)
 {
     if (m_state == ParserState::ERROR)
@@ -141,11 +132,6 @@ bool RequestParser::fetchData(const std::string& data)
     return true;
 }
 
-/* Feeds data into the parser and processes based on current state
- * @param data: chunk of HTTP request data
- * @return: optional Request object if parsing complete, nullopt if need more data, throws exception on error
- * Use: call repeatedly with incoming socket data until parsing completes
- */
 std::optional<Request> RequestParser::parseClientRequest(const std::string& data)
 {
     if (!fetchData(data))

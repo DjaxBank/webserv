@@ -3,7 +3,6 @@
 #include <cctype>
 #include <map>
 
-/* Converts HttpMethod enum to string  */
 std::string method_tostring(HttpMethod method)
 {
     switch(method)
@@ -16,7 +15,6 @@ std::string method_tostring(HttpMethod method)
     return "NONE";
 }
 
-/* Converts string to HttpMethod enum; returns NONE if invalid */
 HttpMethod string_tomethod(const std::string& str)
 {
     if (str == "GET") return HttpMethod::GET;
@@ -25,7 +23,6 @@ HttpMethod string_tomethod(const std::string& str)
     return HttpMethod::NONE;
 }
 
-/* Converts string to HttpVersion enum; returns NONE if invalid */
 HttpVersion string_toversion(const std::string &version)
 {
     if (version == "HTTP/1.0") return HttpVersion::HTTP_1_0;
@@ -33,7 +30,6 @@ HttpVersion string_toversion(const std::string &version)
     return HttpVersion::NONE;
 }
 
-/* Converts HttpVersion enum to string; returns "NONE" if invalid*/
 std::string version_tostring(const HttpVersion &version)
 {
     switch (version)
@@ -45,7 +41,6 @@ std::string version_tostring(const HttpVersion &version)
     return "NONE";
 }
 
-/* Converts ParserState enum to string */
 std::string state_tostring(ParserState state)
 {
     switch(state)
@@ -59,27 +54,21 @@ std::string state_tostring(ParserState state)
     }
 }
 
-/* placeholder, needs implementing */
 void handle_method(HttpMethod method)
 {
     switch (method)
     {
         case HttpMethod::GET:
-            // implement
             break; 
         case HttpMethod::POST:
-            // implement
             break; 
         case HttpMethod::DELETE:
-            // implement
             break; 
         case HttpMethod::NONE:
-           // handle error/invalid
            break;
     }
 }
 
-/* Trims header values of leading/trailing whitespace */
 std::string RequestParser::trimValue(const std::string& value)
 {
     std::string result = value;
@@ -97,12 +86,6 @@ std::string RequestParser::trimValue(const std::string& value)
     return result;
 }
 
-/* Extracts next complete line (up to \r\n) from source string
- * Removes the extracted line + CRLF from source
- * @param source: string to extract from (modified in place)
- * @param out_token: extracted line without CRLF
- * @return: true if line found, false if incomplete
- */
 bool RequestParser::extractLineToken(std::string& source, std::string& out_token)
 {
     size_t line_end = source.find(HTTP_CONSTANT::CRLF);
@@ -114,7 +97,6 @@ bool RequestParser::extractLineToken(std::string& source, std::string& out_token
     return true;
 }
 
-/* Extracts header key. Errors return empty string*/
 std::string RequestParser::extractKey(const std::string& header_token)
 {
     size_t pos = header_token.find(':');
@@ -127,7 +109,6 @@ std::string RequestParser::extractKey(const std::string& header_token)
     return key;
 }
 
-/* Extracts header value for key pair. Values allowed to be empty*/
 std::string RequestParser::extractValue(const std::string& header_token)
 {
     size_t pos = header_token.find(':');
@@ -138,18 +119,12 @@ std::string RequestParser::extractValue(const std::string& header_token)
 }
 
 
-/* Validates HTTP version string against supported versions
- * Currently accepts: HTTP/1.0, HTTP/1.1
- */
 bool RequestParser::validateHTTPVersion(const std::string& version)
 {
     return version == "HTTP/1.0"
         || version == "HTTP/1.1";
 }
 
-/* Helper function to validate content-length header
-    @param value is the value of the content-length key pair
-    @param out_length a size_t value to store the content length in after parsing */
 void RequestParser::validateContentLength(const std::string& value, size_t& out_length)
 {
     if (value.empty())
@@ -209,7 +184,6 @@ void RequestParser::validateContentLength(const std::string& value, size_t& out_
     }
 }
 
-/* Enforces HTTP/1.1 requiring the "Host" header */
 void RequestParser::validateRequiredHeaders()
 {
     if (m_request.getVersion() == HttpVersion::HTTP_1_1 && getHeader("Host").empty())
@@ -223,9 +197,6 @@ void RequestParser::validateRequiredHeaders()
     }
 }
 
-/* Prints detailed parser state and request contents for debugging
- * @param label: optional label to identify the debug point
- */
 void RequestParser::debugState(const char* label) const
 {
     const size_t preview_length = 80;

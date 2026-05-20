@@ -15,13 +15,10 @@ struct Route_rule
 	std::vector<HttpMethod>			http_methods;
 	std::string						redirection;
 	std::string						default_dir_file;
-	// initialized to false so we dont reject routes that dont have a directorylisting directive
 	bool							directorylisting  = false;
-	// djax-todo: we need to handle uploads in a separate directory, im storing the dir here
 	std::string						upload_dir;
 };
 
-// added line c to be able to report lines in errors
 class Server
 {
 	private:
