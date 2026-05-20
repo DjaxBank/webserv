@@ -24,7 +24,10 @@ Response::Response(const Server *config, const Route_rule *route, const Request 
 		this->status = ReplyStatus::MovedPermanently;
 	else
 	{
-		file_location = route->root + "/" + request->getPath().substr(route->route.length());
+		if (this->route->directorylisting == false)
+			file_location = this->route->default_dir_file;
+		else 
+			file_location = route->root + "/" + request->getPath().substr(route->route.length());
 		std::error_code ec;
 		if (std::filesystem::exists(file_location, ec))
 		{
