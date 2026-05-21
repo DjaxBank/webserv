@@ -22,35 +22,35 @@ static void signal_handler(int signal)
 	std::cout << '\n';
 }
 
-static fd_set setup_socket_fds(std::vector<int> &fd_list)
+static void setup_socket_fds(std::vector<int> &read_list, fd_set &read_fds, fd_set &write_fds)
 {
-	fd_set socket_fds;
-	FD_ZERO(&socket_fds);
-	for (int fd : fd_list)
-		FD_SET(fd, &socket_fds);
-	return socket_fds;
+	FD_ZERO(&read_fds);
+	FD_ZERO(&write_fds);
+	for (int fd : read_list)
+		FD_SET(fd, &read_fds);
 }
 
-static void reset_sockets(std::vector<Server> &servers, fd_set &socket_fds, std::vector<int> &keep_alive,  std::vector<t_cgi> &cgi, int &max_fd)
+static void reset_sockets(std::vector<Server> &servers, fd_set &read_fds, fd_set &write_fds, std::vector<int> &keep_alive,  std::vector<t_cgi> &cgi, int &max_fd)
 {
-	std::vector<int>	fd_list;
+	std::vector<int>	read_list;
 
 	for (Server &serv : servers)
-		fd_list.push_back(serv.sock.get_socket_fd());
+		read_list.push_back(serv.sock.get_socket_fd());
 	for (std::vector<int>::iterator it = keep_alive.begin(); it != keep_alive.end() ; it++)
-		fd_list.push_back(*it);
+		read_list.push_back(*it);
 	for (t_cgi &cur : cgi)
-		fd_list.push_back(cur.pipe);
-	socket_fds = setup_socket_fds(fd_list);
+		read_list.push_back(cur.pipe);
+	setup_socket_fds(read_list, read_fds, write_fds);
 	max_fd = 0;
-	for (int fd : fd_list)
+	for (int fd : read_list)
 		if (fd > max_fd)
 			max_fd = fd;
 }
 
 static void server_loop(std::vector<Server> servers, char **envp)
 {
-	fd_set					socket_fds;
+	fd_set					read_fds;
+	fd_set					write_fds;
 	int						max_fd;
 	std::vector<int>		keep_alive;
 	std::vector<t_cgi>		cgi;
@@ -63,12 +63,12 @@ static void server_loop(std::vector<Server> servers, char **envp)
 		if (!cgi.empty())
 			check_timeout(cgi);
 		timeval timeout{3, 0};
-		reset_sockets(servers, socket_fds, keep_alive, cgi, max_fd);
-		if (select(max_fd + 1, &socket_fds, NULL, NULL, &timeout) > 0)
+		reset_sockets(servers, read_fds, write_fds, keep_alive, cgi, max_fd);
+		if (select(max_fd + 1, &read_fds, NULL, NULL, &timeout) > 0)
 		{
 			try
 			{
-				handle_client(servers, &socket_fds, keep_alive, cgi, envp);
+				handle_client(servers, &read_fds, keep_alive, cgi, envp);
 			}
 			catch(const std::exception& e)
 			{
