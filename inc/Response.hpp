@@ -9,9 +9,10 @@ class Response
 		bool				prevcgi = false;
 		int					cgi_fd;
 		const				Server *config;
+		std::string			ip;
 		char				**envp;
 		const int			fd;
-		const Request		*request;
+		const Request		request;
 		const Route_rule	*route;
 		ReplyStatus			status;
 		HttpMethod			method;

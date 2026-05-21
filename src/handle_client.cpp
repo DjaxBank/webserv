@@ -88,12 +88,12 @@ void close_socket(int fd, std::vector<Server> &servers, std::vector<int> &keep_a
 // should_close is used to determine if the connection should be closed after the response is sent
 // if not and the connection is not in the keep-alive list, add it to the list
 
-static std::vector<int> setup_active(std::vector<Server> &servers, fd_set *monitored, std::vector<int> &keep_alive, std::vector<t_cgi> &cgi)
+static std::vector<int> setup_active(std::vector<Server> &servers, fd_set *read_fds, fd_set *write_fds, std::vector<int> &keep_alive, std::vector<int> &to_respond, std::vector<t_cgi> &cgi)
 {
 	std::vector<int> active_fds;
 	for (Server &serv : servers)
 	{
-		if (FD_ISSET(serv.sock.get_socket_fd(), monitored))
+		if (FD_ISSET(serv.sock.get_socket_fd(), read_fds))
 		{
 			timeval tv {60, 0};
 			socklen_t addr_len = sizeof(struct sockaddr_in);
@@ -106,10 +106,13 @@ static std::vector<int> setup_active(std::vector<Server> &servers, fd_set *monit
 		}
 	}
 	for (t_cgi &cur : cgi)
-		if (FD_ISSET(cur.pipe, monitored))
+		if (FD_ISSET(cur.pipe, read_fds))
 			active_fds.push_back(cur.pipe);
 	for (int fd : keep_alive)
-		if (FD_ISSET(fd, monitored))
+		if (FD_ISSET(fd, read_fds))
+			active_fds.push_back(fd);
+	for (int fd : to_respond)
+		if (FD_ISSET(fd, write_fds))
 			active_fds.push_back(fd);
 	return active_fds;
 }
@@ -142,80 +145,123 @@ void execute_cgi(int fd, std::map<int, Request> &saved_requests, std::map<int, S
 		saved_routes.erase(saved_route);
 }
 
-void handle_client(std::vector<Server> &servers, fd_set *monitored, std::vector<int> &keep_alive, std::vector<t_cgi> &cgi, char **envp)
+bool is_response(int fd, std::vector<int>& to_respond)
 {
-	std::vector<int>					active_fds = setup_active(servers, monitored, keep_alive, cgi);
+	for (auto it = to_respond.begin() ; it != to_respond.end() ; it++)
+	{
+		if (*it == fd)
+		{
+			to_respond.erase(it);
+			return true;
+		}
+	}
+	return false;
+}
+
+void handle_client(std::vector<Server> &servers, fd_set *read_fds, fd_set *write_fds, std::vector<int> &keep_alive, std::vector<t_cgi> &cgi, char **envp, std::vector<int> &to_respond)
+{
+	std::vector<int>					active_fds = setup_active(servers, read_fds, write_fds, keep_alive, to_respond, cgi);
 	static std::map<int, Request>		saved_requests;
 	static std::map<int, Server>		saved_configs;
 	static std::map<int, Route_rule>	saved_routes;
 	static std::map<std::string, int>	cookies;
+	static std::map<int, Response>		saved_responses;
 
 	for (int fd : active_fds)
 	{
-		std::optional<Request>	parsed_request;
-		Server					*config = find_active_server(fd, servers);
-		RequestParser			parser;
-		Route_rule 				*route = nullptr;
-		int 					cgi_fd;
-		bool					is_cgi = find_cgi(cgi, fd) != nullptr;
-	
-		if (is_cgi)
+
+		if (is_response(fd, to_respond))
 		{
-			cgi_fd = fd;
-			fd = find_cgi(cgi, fd)->sock;
-		}
-		try
-		{
-			if (!is_cgi)
+			auto it = saved_responses.begin();
+			while (it != saved_responses.end())
 			{
-				parsed_request	= receive_data(fd, parser);
-				
-				if (!parsed_request.has_value())
+				if (it->first == fd)
 				{
-					close_socket(fd, servers, keep_alive);
-					continue;
+					(it->second.Reply());
+					saved_responses.erase(it);
+					break;
 				}
-				route = &find_correct_route(config, parsed_request.value());
-				if (new_cgi(route->root + "/" + parsed_request->getPath().substr(route->route.length()), config, parsed_request.value(), cgi, fd, envp))
+				it++;
+			}
+			for (auto it = to_respond.begin() ; it != to_respond.end() ; it++)
+			{
+				if (*it == fd)
 				{
-					saved_requests.emplace((std::pair<int, Request>){fd, parsed_request.value()});
-					saved_configs.emplace((std::pair<int, Server>){fd, *config});
-					saved_routes.emplace((std::pair<int, Route_rule>){fd, *route});
-				}
-				else
-				{
-					Response response(config, route, &parsed_request.value(), fd, envp, cookies);
-					response.Reply();
+					to_respond.erase(it);
+					break ;
 				}
 			}
-			else if (is_cgi)
-			execute_cgi(fd, saved_requests, saved_configs, saved_routes, cgi, envp, cgi_fd, cookies);
 		}
-		catch(const HttpParseException& e)
+		else
 		{
-			std::cerr << e.what() << '\n';
+			std::optional<Request>	parsed_request;
+			Server					*config = find_active_server(fd, servers);
+			RequestParser			parser;
+			Route_rule 				*route = nullptr;
+			int 					cgi_fd;
+			bool					is_cgi = find_cgi(cgi, fd) != nullptr;
+		
+			if (is_cgi)
+			{
+				cgi_fd = fd;
+				fd = find_cgi(cgi, fd)->sock;
+			}
 			try
 			{
-				Response error_response(fd, config, &parsed_request.value(), e.getStatus(), cookies);
-				error_response.Reply();
+				if (!is_cgi)
+				{
+					parsed_request	= receive_data(fd, parser);
+					
+					if (!parsed_request.has_value())
+					{
+						close_socket(fd, servers, keep_alive);
+						continue;
+					}
+					route = &find_correct_route(config, parsed_request.value());
+					if (new_cgi(route->root + "/" + parsed_request->getPath().substr(route->route.length()), config, parsed_request.value(), cgi, fd, envp))
+					{
+						saved_requests.emplace((std::pair<int, Request>){fd, parsed_request.value()});
+						saved_configs.emplace((std::pair<int, Server>){fd, *config});
+						saved_routes.emplace((std::pair<int, Route_rule>){fd, *route});
+					}
+					else
+					{
+						Response response(config, route, &parsed_request.value(), fd, envp, cookies);
+						saved_responses.emplace(fd, response);
+						to_respond.push_back(fd);
+					}
+				}
+				else if (is_cgi)
+					execute_cgi(fd, saved_requests, saved_configs, saved_routes, cgi, envp, cgi_fd, cookies);
 			}
-			catch(const std::exception& error)
+			catch(const HttpParseException& e)
 			{
-				std::cerr << "Failed to send error response: " << error.what() << '\n';
+				std::cerr << e.what() << '\n';
+				try
+				{
+					Response error_response(fd, config, &parsed_request.value(), e.getStatus(), cookies);
+					saved_responses.emplace(fd, error_response);
+					to_respond.push_back(fd);
+				}
+				catch(const std::exception& error)
+				{
+					std::cerr << "Failed to send error response: " << error.what() << '\n';
+				}
+			}
+			catch (const std::exception& e)
+			{
+				std::cerr << "Error handling request: " << e.what() << '\n';
+				try
+				{
+					Response error_response(fd, config, &parsed_request.value(), ReplyStatus::InternalServerError, cookies);
+					saved_responses.emplace(fd, error_response);
+				}
+				catch (const std::exception& error)
+				{
+					std::cerr << "Failed to send error response: " << error.what() << '\n';
+				}
 			}
 		}
-		catch (const std::exception& e)
-		{
-			std::cerr << "Error handling request: " << e.what() << '\n';
-			try
-			{
-				Response error_response(fd, config, &parsed_request.value(), ReplyStatus::InternalServerError, cookies);
-				error_response.Reply();
-			}
-			catch (const std::exception& error)
-			{
-				std::cerr << "Failed to send error response: " << error.what() << '\n';
-			}
+
 		}
-	}
 }

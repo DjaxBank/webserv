@@ -7,6 +7,6 @@
 #include "Server.hpp"
 #include "cgi.hpp"
 
-void	handle_client(std::vector<Server> &servers, fd_set *socket_fds, std::vector<int> &keep_alive, std::vector<t_cgi> &cgi, char **envp);
+void	handle_client(std::vector<Server> &servers, fd_set *read_fds, fd_set *write_fds, std::vector<int> &keep_alive, std::vector<t_cgi> &cgi, char **envp, std::vector <int> &to_respond);
 void	Http_Get(const int fd, const Route_rule &route, const RequestParser &parser);
 void	close_socket(int fd, std::vector<Server> &servers, std::vector<int> &keep_alive);

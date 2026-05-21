@@ -10,13 +10,13 @@
 #include <sstream>
 
 Response::Response(const int fd, const Server *config, const Request *request, ReplyStatus status, std::map<std::string, int> &cookies)
-	: config(config), envp(NULL), fd(fd), request(request), route(NULL), status(status), method(HttpMethod::NONE), Date(get_timestr()), cookies(cookies) {};
+	: config(config), envp(NULL), fd(fd), request(*request), route(NULL), status(status), method(HttpMethod::NONE), Date(get_timestr()), cookies(cookies) {};
 
 Response::Response(const Server *config, const Route_rule *route, const Request *request, const int fd, char **envp, const int cgi_fd, std::map<std::string, int> &cookies)
-	: cgi_fd(cgi_fd),  config(config), envp(envp), fd(fd), request(request), route(route), status(ReplyStatus::Unset), method(request->getMethod()), Date(get_timestr()), cookies(cookies) {prevcgi = true;};
+	: cgi_fd(cgi_fd),  config(config), envp(envp), fd(fd), request(*request), route(route), status(ReplyStatus::Unset), method(request->getMethod()), Date(get_timestr()), cookies(cookies) {prevcgi = true;};
 
 Response::Response(const Server *config, const Route_rule *route, const Request *request, const int fd, char **envp, std::map<std::string, int> &cookies)
-	: config(config), envp(envp), fd(fd), request(request), route(route), method(request->getMethod()), Date(get_timestr()), cookies(cookies)
+	: config(config), envp(envp), fd(fd), request(*request), route(route), method(request->getMethod()), Date(get_timestr()), cookies(cookies)
 {
 	this->status = ReplyStatus::Unset;
 	if (!route->redirection.empty())
@@ -139,7 +139,7 @@ void Response::GET()
 
 void Response::POST()
 {
-	const std::map<std::string, std::string> &headers = request->getHeaders();
+	const std::map<std::string, std::string> &headers = request.getHeaders();
 	std::map<std::string, std::string>::const_iterator content_type_it = headers.find("content-type");
 	std::map<std::string, std::string>::const_iterator content_length_it = headers.find("content-length");
 
@@ -148,7 +148,7 @@ void Response::POST()
 	{
 		if (std::atoi(content_length_it->second.c_str()) <= config->MaxRequestBodySize)
 		{
-			std::string uploaded_file(request->getBodyAsString());
+			std::string uploaded_file(request.getBodyAsString());
 			std::string filename(uploaded_file.substr(uploaded_file.find("filename=") + 10));
 			filename = filename.substr(0, filename.find('\"'));
 			uploaded_file = uploaded_file.substr(uploaded_file.find("\r\n\r\n") + 4);
@@ -219,7 +219,7 @@ std::stringstream generateSession()
 void Response::handleCounter()
 {
     std::string cookie_value;
-    const std::map<std::string, std::string> &req_headers = request->getHeaders();
+    const std::map<std::string, std::string> &req_headers = request.getHeaders();
     auto cookie_it = req_headers.find("cookie");
 
     if (cookie_it != req_headers.end())
@@ -256,7 +256,7 @@ void Response::Reply()
 
 	if (status == ReplyStatus::Unset)
 		status = ReplyStatus::InternalServerError;
-	if (request && route)
+	if (route)
 	{
 		if (prevcgi)
 		{
@@ -288,7 +288,7 @@ void Response::Reply()
 	}
 	if (status != ReplyStatus::OK && status != ReplyStatus::Created && status != ReplyStatus::MovedPermanently)
 		SetErrorPages();
-	std::cout << "socket "<< fd <<  ": " << request->getPath() << ' '<< status_to_string(status) << std::endl;
+	std::cout << "socket "<< fd <<  ": " << request.getPath() << ' '<< status_to_string(status) << std::endl;
 	headers.emplace(headers.begin(), "HTTP/1.1 " + status_to_string(status));
 	headers.emplace_back("Date: " + Date);
 	if (status == ReplyStatus::MovedPermanently && route && !route->redirection.empty())
