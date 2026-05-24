@@ -68,7 +68,6 @@ static t_cgi start_Cgi(Server &config, std::string cgi_program, std::string scri
 		std::pair<std::string, std::string>	SERVER_PORT("SERVER_PORT", std::to_string(config.sock.info.first));
 		std::pair<std::string, std::string>	SERVER_PROTOCOL("SERVER_PROTOCOL", "HTTP/1.1");
 		std::pair<std::string, std::string>	REMOTE_ADDR("REMOTE_ADDR", config.sock.client_fds.find(sock)->second);
-		std::vector<std::pair<std::string, std::string> *> to_add{&REQUEST_METHOD, &QUERY_STRING, &CONTENT_TYPE, &CONTENT_LENGTH, &SCRIPT_NAME, &SCRIPT_FILENAME, &SERVER_NAME, &SERVER_PORT, &SERVER_PROTOCOL, &REMOTE_ADDR, &PATH_INFO};
 		std::vector<std::string>			args;
 		std::vector<std::string>			final_strings;
 
@@ -85,7 +84,8 @@ static t_cgi start_Cgi(Server &config, std::string cgi_program, std::string scri
 			chdir(filelocation.substr(filelocation.find_last_of('/')).c_str());
 			filelocation.erase(0, filelocation.find_last_of('/'));
 		}
-		execve(cgi_program.c_str(), args_execve.data(), setenv(envp, to_add, final_strings).data());
+		execve(cgi_program.c_str(), args_execve.data(), setenv(envp, 
+				{&REQUEST_METHOD, &QUERY_STRING, &CONTENT_TYPE, &CONTENT_LENGTH, &SCRIPT_NAME, &SCRIPT_FILENAME, &SERVER_NAME, &SERVER_PORT, &SERVER_PROTOCOL, &REMOTE_ADDR, &PATH_INFO}, final_strings).data());
 		exit(1);
 	}
 	if (!body.empty())
