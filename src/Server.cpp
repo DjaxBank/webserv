@@ -8,7 +8,6 @@
 #include <sstream>
 #include <cctype>
 
-// finds the first and last non-whitespace characters and returns the substring between them
 static std::string trim(const std::string &str)
 {
 	const char *whitespace = " \t\n\r\f\v";
@@ -19,7 +18,6 @@ static std::string trim(const std::string &str)
 	return str.substr(start, end - start + 1);
 }
 
-// reads one line, increments linec, returns full-line trimmed content (may be empty)
 static std::string readTrimmedLine(std::ifstream &fstream, size_t &linec)
 {
 	std::string line;
@@ -84,7 +82,6 @@ static bool validateHttpStatus(const std::string &directive)
 	return code >= 100 && code <= 599;
 }
 
-// checks for valid named server directives and HTTP status codes
 static bool isAllowedServerDirective(const std::string &directive)
 {
 	static const std::unordered_set<std::string> named = {
@@ -149,7 +146,6 @@ void Server::ImportPortPairs(const std::string &value, size_t linec)
 	listen_specs.push_back({port, host});
 }
 
-// validates the required fields for a route rule
 static void validateRequiredFields(Route_rule &new_route)
 {
 	std::vector<std::string> missing_options;
@@ -170,7 +166,6 @@ static void validateRequiredFields(Route_rule &new_route)
 	}
 }
 
-// whitespace-separated tokens only -> get, post, delete, one required
 static void importRouteMethods(const std::string &value, Route_rule &new_route, size_t linec)
 {
 	bool have_get = false, have_post = false, have_delete = false;
@@ -201,7 +196,6 @@ static void importRouteMethods(const std::string &value, Route_rule &new_route, 
 		new_route.http_methods.push_back(HttpMethod::DELETE);
 }
 
-// takes a directive and a route rule and dispatches the directive to the appropriate field in the route rule
 static void dispatchDirective(LineToken &token, Route_rule &new_route, size_t &linec)
 {
 	if (token.directive == "route")
@@ -222,7 +216,6 @@ static void dispatchDirective(LineToken &token, Route_rule &new_route, size_t &l
 		throw std::runtime_error("unknown directive at line " + std::to_string(linec) + ": " + token.directive);
 }
 
-// reads a route block and validates the route rule and adds it to the routes vector
 void Server::ImportRoute(std::ifstream &fstream, size_t &linec)
 {
 	Route_rule new_route;
@@ -266,7 +259,6 @@ void Server::applyServerDirective(const std::string &directive, const std::strin
 		error_page_paths[std::atoi(directive.c_str())] = value;
 }
 
-// helper function to import the cgi directive
 void Server::importCgiDirective(const std::string &value, size_t linec)
 {
 	size_t space = value.find(' ');

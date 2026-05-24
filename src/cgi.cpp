@@ -20,8 +20,22 @@ void check_timeout(std::vector<t_cgi> &cgi)
 	}
 }
 
-static std::vector<char *>setenv(char **envp, std::vector<std::pair<std::string, std::string> *> &to_add, std::vector<std::string> &final_strings)
+static std::vector<char *>setenv(Server &config, char **envp, Request &request, std::string afterpath, int sock, std::string &filelocation, std::string &scriptname)
 {
+	const std::map<std::string, std::string >headers = request.getHeaders();
+	std::pair<std::string, std::string>	PATH_INFO("PATH_INFO", afterpath);
+	std::pair<std::string, std::string>	REQUEST_METHOD("REQUEST_METHOD", method_tostring(request.getMethod()));
+	std::pair<std::string, std::string>	QUERY_STRING("QUERY_STRING", request.getQuery());
+	std::pair<std::string, std::string>	CONTENT_TYPE("CONTENT_TYPE", headers.contains("content-type") ? headers.find("content-type")->second : "");
+	std::pair<std::string, std::string>	CONTENT_LENGTH("CONTENT_LENGTH", headers.contains("content-length") ? headers.find("content-length")->second : ""); 
+	std::pair<std::string, std::string>	SCRIPT_NAME("SCRIPT_NAME", scriptname);
+	std::pair<std::string, std::string>	SCRIPT_FILENAME("SCRIPT_FILENAME", filelocation);
+	std::pair<std::string, std::string>	SERVER_NAME("SERVER_NAME", headers.contains("host") ? headers.find("host")->second : "");
+	std::pair<std::string, std::string>	SERVER_PORT("SERVER_PORT", std::to_string(config.sock.info.first));
+	std::pair<std::string, std::string>	SERVER_PROTOCOL("SERVER_PROTOCOL", "HTTP/1.1");
+	std::pair<std::string, std::string>	REMOTE_ADDR("REMOTE_ADDR", config.sock.client_fds.find(sock)->second);
+	std::vector<std::pair<std::string, std::string> *> to_add{&REQUEST_METHOD, &QUERY_STRING, &CONTENT_TYPE, &CONTENT_LENGTH, &SCRIPT_NAME, &SCRIPT_FILENAME, &SERVER_NAME, &SERVER_PORT, &SERVER_PROTOCOL, &REMOTE_ADDR};
+	std::vector<std::string> final_strings;
 	std::vector<char *> execenv;
 	for (std::pair<std::string, std::string> *cur : to_add)
 	{
@@ -42,21 +56,8 @@ static std::vector<char *>setenv(char **envp, std::vector<std::pair<std::string,
 	return execenv;
 }
 
-static t_cgi start_Cgi(Server &config, std::string cgi_program, std::string scriptname, std::string filelocation, Request &request, int sock, char **envp)
+static t_cgi start_Cgi(Server &config, std::string cgi_program, std::string scriptname, std::string filelocation, Request &request, int sock, char **envp, std::string afterpath)
 {
-	const std::map<std::string, std::string >headers = request.getHeaders();
-	std::pair<std::string, std::string>	REQUEST_METHOD("REQUEST_METHOD", method_tostring(request.getMethod()));
-	std::pair<std::string, std::string>	QUERY_STRING("QUERY_STRING", request.getQuery());
-	std::pair<std::string, std::string>	CONTENT_TYPE("CONTENT_TYPE", headers.contains("content-type") ? headers.find("content-type")->second : "");
-	std::pair<std::string, std::string>	CONTENT_LENGTH("CONTENT_LENGTH", headers.contains("content-length") ? headers.find("content-length")->second : ""); 
-	std::pair<std::string, std::string>	SCRIPT_NAME("SCRIPT_NAME", scriptname);
-	std::pair<std::string, std::string>	SCRIPT_FILENAME("SCRIPT_FILENAME", filelocation);
-	std::pair<std::string, std::string>	SERVER_NAME("SERVER_NAME", headers.contains("host") ? headers.find("host")->second : "");
-	std::pair<std::string, std::string>	SERVER_PORT("SERVER_PORT", std::to_string(config.sock.info.first));
-	std::pair<std::string, std::string>	SERVER_PROTOCOL("SERVER_PROTOCOL", "HTTP/1.1");
-	std::pair<std::string, std::string>	REMOTE_ADDR("REMOTE_ADDR", config.sock.client_fds.find(sock)->second);
-	std::vector<std::pair<std::string, std::string> *> to_add{&REQUEST_METHOD, &QUERY_STRING, &CONTENT_TYPE, &CONTENT_LENGTH, &SCRIPT_NAME, &SCRIPT_FILENAME, &SERVER_NAME, &SERVER_PORT, &SERVER_PROTOCOL, &REMOTE_ADDR};
-	std::vector<std::string> final_strings;
 	std::string body = request.getBodyAsString();
 	int pipes[2];
 	int bodypipe[2];
@@ -85,7 +86,7 @@ static t_cgi start_Cgi(Server &config, std::string cgi_program, std::string scri
 			chdir(filelocation.substr(filelocation.find_last_of('/')).c_str());
 			filelocation.erase(0, filelocation.find_last_of('/'));
 		}
-		execve(cgi_program.c_str(), args_execve.data(), setenv(envp, to_add, final_strings).data());
+		execve(cgi_program.c_str(), args_execve.data(), setenv(config, envp, request, afterpath, sock, filelocation, scriptname).data());
 		exit(1);
 	}
 	if (!body.empty())
@@ -111,15 +112,14 @@ std::string read_cgi(int fd)
 
 bool new_cgi(std::string file_location, Server *config, Request &request, std::vector<t_cgi> &cgi, int fd, char **envp)
 {
-	if (find_cgi(cgi, fd) == nullptr)
+	for (auto cur : config->cgiconfigs)
 	{
-		std::string ext;
-		size_t i = file_location.find_last_of('.');
-		if (i != file_location.npos)
-			ext = file_location.substr(file_location.find_last_of('.'));
-		if (config->cgiconfigs.contains(ext))
+		size_t i = file_location.find(cur.first);
+		if (i != std::string::npos)
 		{
-			cgi.push_back(start_Cgi(*config, config->cgiconfigs.find(ext)->second, request.getPath(), file_location, request, fd, envp));
+			std::string afterpath = file_location.substr(i + cur.first.length());
+			file_location.erase(i + cur.first.length());
+			cgi.push_back(start_Cgi(*config, cur.second, request.getPath(), file_location, request, fd, envp, afterpath));
 			return true;
 		}
 	}
