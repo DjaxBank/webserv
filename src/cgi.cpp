@@ -20,14 +20,13 @@ void check_timeout(std::vector<t_cgi> &cgi)
 	}
 }
 
-static std::vector<char *>setenv(char **envp, std::vector<std::pair<std::string, std::string> *> to_add)
+static std::vector<char *>setenv(char **envp, std::vector<std::pair<std::string, std::string> *> to_add, std::vector<std::string> &final_strings)
 {
-	std::vector<std::string>					final_strings;
 	std::vector<char *> 						execenv;
-
+	
 	for (std::pair<std::string, std::string> *cur : to_add)
-		if (!cur->second.empty())
-			final_strings.push_back(cur->first + '=' + cur->second);
+	if (!cur->second.empty())
+	final_strings.push_back(cur->first + '=' + cur->second);
 	final_strings.push_back("REDIRECT_STATUS=200");
 	size_t i = 0;
 	while (envp[i] != NULL)
@@ -36,7 +35,7 @@ static std::vector<char *>setenv(char **envp, std::vector<std::pair<std::string,
 		i++;
 	}
 	for (std::string &cur : final_strings)
-			execenv.push_back(const_cast<char *>(cur.c_str()));
+	execenv.push_back(const_cast<char *>(cur.c_str()));
 	execenv.push_back(nullptr);
 	return execenv;
 }
@@ -70,7 +69,9 @@ static t_cgi start_Cgi(Server &config, std::string cgi_program, std::string scri
 		std::pair<std::string, std::string>	SERVER_PROTOCOL("SERVER_PROTOCOL", "HTTP/1.1");
 		std::pair<std::string, std::string>	REMOTE_ADDR("REMOTE_ADDR", config.sock.client_fds.find(sock)->second);
 		std::vector<std::pair<std::string, std::string> *> to_add{&REQUEST_METHOD, &QUERY_STRING, &CONTENT_TYPE, &CONTENT_LENGTH, &SCRIPT_NAME, &SCRIPT_FILENAME, &SERVER_NAME, &SERVER_PORT, &SERVER_PROTOCOL, &REMOTE_ADDR, &PATH_INFO};
-		std::vector<std::string>	args;
+		std::vector<std::string>			args;
+		std::vector<std::string>			final_strings;
+
 		args.push_back(cgi_program);
 		std::vector<char*> args_execve;
 		for (std::string &str : args)
@@ -84,7 +85,7 @@ static t_cgi start_Cgi(Server &config, std::string cgi_program, std::string scri
 			chdir(filelocation.substr(filelocation.find_last_of('/')).c_str());
 			filelocation.erase(0, filelocation.find_last_of('/'));
 		}
-		execve(cgi_program.c_str(), args_execve.data(), setenv(envp, to_add).data());
+		execve(cgi_program.c_str(), args_execve.data(), setenv(envp, to_add, final_strings).data());
 		exit(1);
 	}
 	if (!body.empty())
