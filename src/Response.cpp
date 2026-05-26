@@ -27,9 +27,14 @@ void Response::check_file()
 		this->status = ReplyStatus::MovedPermanently;
 	else
 	{
-		file_location = route->root + "/" + request.getPath().substr(route->route.length());
-		if (this->route->directorylisting == false && std::filesystem::is_directory(file_location))
-			file_location = this->route->default_dir_file;
+		if (!prevcgi)
+		{
+			file_location = route->root + "/" + request.getPath().substr(route->route.length());
+			if (this->route->directorylisting == false && std::filesystem::is_directory(file_location))
+				file_location = this->route->default_dir_file;
+		}
+		else
+			file_location = request.getPath();
 		std::error_code ec;
 		if (std::filesystem::exists(file_location, ec))
 		{

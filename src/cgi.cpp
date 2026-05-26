@@ -134,6 +134,7 @@ bool new_cgi(std::string file_location, Server *config, Request &request, std::v
 		{
 			std::string afterpath = file_location.substr(i + cur.first.length());
 			file_location.erase(i + cur.first.length());
+			request.setPath(file_location);
 			cgi.push_back(start_Cgi(*config, cur.second, request.getPath(), file_location, request, fd, envp, afterpath));
 			return true;
 		}
