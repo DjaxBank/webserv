@@ -3,6 +3,7 @@
 #include <unistd.h>
 #include <iostream>
 #include <string.h>
+#include <errno.h>
 #include <map>
 #include <sstream>
 #include <netdb.h>
@@ -43,6 +44,8 @@ void Socket::setinterface()
 Socket::Socket(std::pair<int, std::string> sock) : info(sock)
 {
 	socket_fd = socket(AF_INET, SOCK_STREAM, 0);
+	if (socket_fd == -1)
+		throw std::runtime_error(std::string("socket failed: ") + strerror(errno));
 
 	const int reuse = 1;
 	setsockopt(socket_fd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse));
@@ -56,12 +59,23 @@ Socket::Socket(std::pair<int, std::string> sock) : info(sock)
 		throw std::runtime_error(strerror(errno));
 }
 
-Socket::Socket(const Socket &other) : socket_fd(dup(other.socket_fd)), addr(other.addr), info(other.info){}
+Socket::Socket(const Socket &other) : socket_fd(dup(other.socket_fd)), addr(other.addr), info(other.info)
+{
+	if (socket_fd == -1)
+		throw std::runtime_error(std::string("dup failed: ") + strerror(errno));
+}
 
 Socket &Socket::operator=(const Socket &other)
 {
+	if (this == &other)
+		return *this;
+	int new_fd = dup(other.socket_fd);
+	if (new_fd == -1)
+		throw std::runtime_error(std::string("dup failed: ") + strerror(errno));
+	if (this->socket_fd != -1)
+		close(this->socket_fd);
+	this->socket_fd = new_fd;
 	this->info = other.info;
-	this->socket_fd = dup(other.socket_fd);
 	this->addr = other.addr;
 	return *this;
 }

@@ -199,17 +199,14 @@ static std::string status_to_string(ReplyStatus status)
 
 std::stringstream generateSession()
 {
-	unsigned char buff[16];
-
-
+	unsigned char buff[16] = {};
 	std::ifstream urandom("/dev/urandom", std::ios::binary);
 	std::stringstream hexstring;
 
 	urandom.read(reinterpret_cast<char *>(buff), sizeof(buff));
 	for (int i = 0; i < 16; i++)
-	{
 		hexstring << std::hex << int(buff[i]);
-	}
+
 	return hexstring;
 }
 

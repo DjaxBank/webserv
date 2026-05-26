@@ -3,11 +3,14 @@
 #include <string>
 #include <vector>
 #include <sys/select.h>
+#include <sys/wait.h>
 #include <requestParser.hpp>
 #include <iostream>
 #include <unistd.h>
 #include <algorithm>
 #include <ctime>
+#include <cstring>
+#include <cerrno>
 #include <filesystem>
 #include <fcntl.h>
 #include "cgi.hpp"
@@ -103,6 +106,11 @@ static std::vector<int> setup_active(std::vector<Server> &servers, fd_set *read_
 			timeval tv {60, 0};
 			socklen_t addr_len = sizeof(struct sockaddr_in);
 			int newfd = accept(serv.sock.get_socket_fd(), reinterpret_cast <sockaddr *>(&serv.sock.get_addr()), &addr_len);
+			if (newfd == -1)
+			{
+				std::cerr << "accept failed: " << strerror(errno) << '\n';
+				continue;
+			}
 			setsockopt(newfd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
 			serv.sock.client_fds.emplace((std::pair<int, std::string>){newfd, serv.sock.get_ip()});
 			if (std::find(keep_alive.begin(), keep_alive.end(), newfd) == keep_alive.end())
@@ -141,6 +149,7 @@ void execute_cgi(int fd, std::map<int, Request> &saved_requests, std::map<int, S
 		{
 			if (it->pipe == cgi_fd)
 			{
+				waitpid(it->pid, NULL, WNOHANG);
 				cgi.erase(it);
 				break ;
 			}

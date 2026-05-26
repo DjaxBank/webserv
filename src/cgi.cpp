@@ -3,6 +3,8 @@
 #include <string>
 #include <vector>
 #include <map>
+#include <cstring>
+#include <cerrno>
 #include "Server.hpp"
 #include "requestParser.hpp"
 #include "cgi.hpp"
@@ -48,12 +50,26 @@ static t_cgi start_Cgi(Server &config, std::string cgi_program, std::string scri
 	
 	if (!body.empty())
 	{
-		pipe(bodypipe);
+		if (pipe(bodypipe) == -1)
+			throw std::runtime_error(std::string("pipe failed: ") + strerror(errno));
 		write(bodypipe[1], body.c_str(), body.length());
 		close(bodypipe[1]);
 	}
-	pipe(pipes);
+	if (pipe(pipes) == -1)
+	{
+		if (!body.empty())
+			close(bodypipe[0]);
+		throw std::runtime_error(std::string("pipe failed: ") + strerror(errno));
+	}
 	pid_t pid = fork();
+	if (pid == -1)
+	{
+		if (!body.empty())
+			close(bodypipe[0]);
+		close(pipes[0]);
+		close(pipes[1]);
+		throw std::runtime_error(std::string("fork failed: ") + strerror(errno));
+	}
 	if (pid == 0)
 	{
 		const std::map<std::string, std::string >	headers = request.getHeaders();
