@@ -143,7 +143,7 @@ void execute_cgi(int fd, std::map<int, Request> &saved_requests, std::map<int, S
 		else
 		{
 			Response timeoutresponse(fd, &saved_config->second, ReplyStatus::RequestTimeout, cookies);  
-			timeoutresponse.Reply();
+			timeoutresponse.if (status != ReplyStatus::OK && status != ReplyStatus::Created && status != ReplyStatus::MovedPermanently)Reply();
 		}
 		for (auto it = cgi.begin() ; it != cgi.end() ; it++)
 		{

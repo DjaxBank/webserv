@@ -16,17 +16,20 @@ Response::Response(const Server *config, const Route_rule *route, const Request 
 	: cgi_fd(cgi_fd),  config(config), envp(envp), fd(fd), request(*request), route(route), status(ReplyStatus::Unset), method(request->getMethod()), Date(get_timestr()), cookies(cookies) {prevcgi = true;};
 
 Response::Response(const Server *config, const Route_rule *route, const Request *request, const int fd, char **envp, std::map<std::string, int> &cookies)
-	: config(config), envp(envp), fd(fd), request(*request), route(route), method(request->getMethod()), Date(get_timestr()), cookies(cookies)
+	: config(config), envp(envp), fd(fd), request(*request), route(route), method(request->getMethod()), Date(get_timestr()), cookies(cookies) {}
+
+void Response::check_file()
 {
+	if (!route)
+		return ;
 	this->status = ReplyStatus::Unset;
 	if (!route->redirection.empty())
 		this->status = ReplyStatus::MovedPermanently;
 	else
 	{
-		if (this->route->directorylisting == false)
+		file_location = route->root + "/" + request.getPath().substr(route->route.length());
+		if (this->route->directorylisting == false && std::filesystem::is_directory(file_location))
 			file_location = this->route->default_dir_file;
-		else 
-			file_location = route->root + "/" + request->getPath().substr(route->route.length());
 		std::error_code ec;
 		if (std::filesystem::exists(file_location, ec))
 		{
@@ -49,6 +52,7 @@ Response::Response(const Server *config, const Route_rule *route, const Request 
 		else
 			this->status = ReplyStatus::NotFound;
 	}
+
 }
 std::string Response::get_timestr()
 {
@@ -210,9 +214,6 @@ std::stringstream generateSession()
 	return hexstring;
 }
 
-
-
-
 void Response::handleCounter()
 {
     std::string cookie_value;
@@ -251,9 +252,10 @@ void Response::Reply()
 {
 	std::string	to_send;
 
+	check_file();
 	if (status == ReplyStatus::Unset)
 		status = ReplyStatus::InternalServerError;
-	if (route)
+	if (route && (status == ReplyStatus::OK || status == ReplyStatus::Created || status == ReplyStatus::MovedPermanently))
 	{
 		if (prevcgi)
 		{
@@ -283,7 +285,7 @@ void Response::Reply()
 			}
 		}
 	}
-	if (status != ReplyStatus::OK && status != ReplyStatus::Created && status != ReplyStatus::MovedPermanently)
+	else
 		SetErrorPages();
 	std::cout << "socket "<< fd <<  ": " << request.getPath() << ' '<< status_to_string(status) << std::endl;
 	headers.emplace(headers.begin(), "HTTP/1.1 " + status_to_string(status));

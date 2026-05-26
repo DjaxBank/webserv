@@ -11,6 +11,7 @@ typedef struct t_cgi
 	int 	pipe;
 	int		sock;
 	pid_t	pid;
+	std::string file_location;
 	std::chrono::steady_clock::time_point start_time = std::chrono::steady_clock::now();
 	bool active = true;
 } t_cgi;

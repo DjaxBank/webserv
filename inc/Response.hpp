@@ -31,6 +31,7 @@ class Response
 							Response();
 		void				SetErrorPages();
 		void				extractcgiheaders();
+		void				check_file();
 		bool				is_cgi();
 		std::map<std::string, int>&		cookies;
 	public:
