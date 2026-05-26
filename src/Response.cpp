@@ -9,8 +9,8 @@
 #include <map>
 #include <sstream>
 
-Response::Response(const int fd, const Server *config, const Request *request, ReplyStatus status, std::map<std::string, int> &cookies)
-	: config(config), envp(NULL), fd(fd), request(*request), route(NULL), status(status), method(HttpMethod::NONE), Date(get_timestr()), cookies(cookies) {};
+Response::Response(const int fd, const Server *config, ReplyStatus status, std::map<std::string, int> &cookies)
+	: config(config), envp(NULL), fd(fd), route(NULL), status(status), method(HttpMethod::NONE), Date(get_timestr()), cookies(cookies) {};
 
 Response::Response(const Server *config, const Route_rule *route, const Request *request, const int fd, char **envp, const int cgi_fd, std::map<std::string, int> &cookies)
 	: cgi_fd(cgi_fd),  config(config), envp(envp), fd(fd), request(*request), route(route), status(ReplyStatus::Unset), method(request->getMethod()), Date(get_timestr()), cookies(cookies) {prevcgi = true;};

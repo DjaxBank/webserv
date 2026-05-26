@@ -13,7 +13,7 @@
 #include "cgi.hpp"
 #include "Response.hpp"
 
-static std::optional<Request> receive_data(int clientfd, RequestParser &parser)
+static std::optional<Request> receive_data(int clientfd, RequestParser &parser, std::vector<Server> &servers, std::vector<int> &keep_alive)
 {
 	char	buf[1024];
 
@@ -23,8 +23,13 @@ static std::optional<Request> receive_data(int clientfd, RequestParser &parser)
 	while(1)
 	{
 		bytes_read = recv(clientfd, buf, 1024, 0); 
-		if (bytes_read <= 0)
+		if (bytes_read == 0)
 			break;
+		else if (bytes_read == -1)
+		{
+			close_socket(clientfd, servers, keep_alive);
+			break ;
+		}
 		std::string better_buf(buf, bytes_read);
 		parsed_request = parser.parseClientRequest(better_buf);
 		if (parsed_request.has_value())
@@ -129,7 +134,7 @@ void execute_cgi(int fd, std::map<int, Request> &saved_requests, std::map<int, S
 		}
 		else
 		{
-			Response timeoutresponse(fd, &saved_config->second, &saved_request->second, ReplyStatus::RequestTimeout, cookies);  
+			Response timeoutresponse(fd, &saved_config->second, ReplyStatus::RequestTimeout, cookies);  
 			timeoutresponse.Reply();
 		}
 		for (auto it = cgi.begin() ; it != cgi.end() ; it++)
@@ -172,25 +177,9 @@ void handle_client(std::vector<Server> &servers, fd_set *read_fds, fd_set *write
 
 		if (is_response(fd, to_respond))
 		{
-			auto it = saved_responses.begin();
-			while (it != saved_responses.end())
-			{
-				if (it->first == fd)
-				{
-					(it->second.Reply());
-					saved_responses.erase(it);
-					break;
-				}
-				it++;
-			}
-			for (auto it = to_respond.begin() ; it != to_respond.end() ; it++)
-			{
-				if (*it == fd)
-				{
-					to_respond.erase(it);
-					break ;
-				}
-			}
+			auto it = saved_responses.find(fd);
+			it->second.Reply();
+			saved_responses.erase(it);
 		}
 		else
 		{
@@ -199,19 +188,18 @@ void handle_client(std::vector<Server> &servers, fd_set *read_fds, fd_set *write
 			RequestParser			parser;
 			Route_rule 				*route = nullptr;
 			int 					cgi_fd;
-			bool					is_cgi = find_cgi(cgi, fd) != nullptr;
+			t_cgi					*is_cgi = find_cgi(cgi, fd);
 		
-			if (is_cgi)
+			if (is_cgi != nullptr)
 			{
 				cgi_fd = fd;
-				fd = find_cgi(cgi, fd)->sock;
+				fd = is_cgi->sock;
 			}
 			try
 			{
-				if (!is_cgi)
+				if (is_cgi == nullptr)
 				{
-					parsed_request	= receive_data(fd, parser);
-					
+					parsed_request	= receive_data(fd, parser, servers, keep_alive);
 					if (!parsed_request.has_value())
 					{
 						close_socket(fd, servers, keep_alive);
@@ -239,13 +227,14 @@ void handle_client(std::vector<Server> &servers, fd_set *read_fds, fd_set *write
 				std::cerr << e.what() << '\n';
 				try
 				{
-					Response error_response(fd, config, &parsed_request.value(), e.getStatus(), cookies);
+					Response error_response(fd, config, e.getStatus(), cookies);
 					saved_responses.emplace(fd, error_response);
 					to_respond.push_back(fd);
 				}
 				catch(const std::exception& error)
 				{
 					std::cerr << "Failed to send error response: " << error.what() << '\n';
+					close_socket(fd, servers, keep_alive);
 				}
 			}
 			catch (const std::exception& e)
@@ -253,12 +242,13 @@ void handle_client(std::vector<Server> &servers, fd_set *read_fds, fd_set *write
 				std::cerr << "Error handling request: " << e.what() << '\n';
 				try
 				{
-					Response error_response(fd, config, &parsed_request.value(), ReplyStatus::InternalServerError, cookies);
+					Response error_response(fd, config, ReplyStatus::InternalServerError, cookies);
 					saved_responses.emplace(fd, error_response);
 				}
 				catch (const std::exception& error)
 				{
 					std::cerr << "Failed to send error response: " << error.what() << '\n';
+					close_socket(fd, servers, keep_alive);
 				}
 			}
 		}
