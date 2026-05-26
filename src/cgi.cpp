@@ -107,7 +107,7 @@ static t_cgi start_Cgi(Server &config, std::string cgi_program, std::string scri
 	if (!body.empty())
 		close(bodypipe[0]);
 	close (pipes[1]);
-	return ((t_cgi){pipes[0], sock, pid});
+	return ((t_cgi){pipes[0], sock, pid, filelocation});
 }
 
 std::string read_cgi(int fd)
