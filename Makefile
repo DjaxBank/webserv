@@ -12,22 +12,21 @@ SRC = parsing/Request.cpp \
 	src/cgi.cpp
 
 OBJS = $(SRC:.cpp=.o)
-DEPENDS = ${OBJS:.o=.d}
 CC = c++
 INC_DIR = inc
 CPPFLAGS = -I$(INC_DIR)
-FLAGS = -Wall -Wextra -MMD -std=c++20
+FLAGS = -Wall -Wextra -Werror -std=c++20
 
 all: $(NAME)
 
 $(NAME): $(OBJS)
 	$(CC) $(FLAGS) $(CPPFLAGS) $(OBJS) -o $(NAME)
 
-%.o: %.cpp Makefile
+%.o: %.cpp
 	$(CC) $(FLAGS) $(CPPFLAGS) -c $< -o $@
 
 clean:
-	$(RM) $(OBJS) $(DEPENDS)
+	$(RM) $(OBJS)
 
 fclean: clean
 	$(RM) $(NAME)
@@ -49,4 +48,3 @@ parser_debug.o: parser_debug.cpp Makefile
 
 .PHONY: build-debug-parser debug_parser test-config
 
--include ${DEPENDS}  
